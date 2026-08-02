@@ -42,14 +42,49 @@ def extract_epub_cover(book_path, output_cover_path):
                     img_out.write(img_data)
                 print(f"✅ Successfully extracted EPUB cover to {output_cover_path}")
                 return True
+def extract_epub_toc(book_path):
+    if not os.path.exists(book_path) or not book_path.lower().endswith(".epub"):
+        return []
+    try:
+        with zipfile.ZipFile(book_path, 'r') as z:
+            toc_files = [f for f in z.namelist() if f.endswith('.ncx') or 'nav' in f.lower()]
+            chapters = []
+            for tf in toc_files:
+                content = z.read(tf)
+                root = ET.fromstring(content)
+                for elem in root.iter():
+                    text = elem.text.strip() if elem.text else ""
+                    if text and ("章" in text or "Chapter" in text or "法則" in text):
+                        if text not in chapters:
+                            chapters.append(text)
+            return chapters
     except Exception as e:
-        print(f"Notice: Could not extract cover from EPUB ({e}). Skipping cover.")
-    return False
+        print(f"Notice: EPUB TOC parsing error: {e}")
+    return []
 
-def main():
+def discover_actual_toc(notebook_id):
+    """Query NotebookLM with a fresh isolated UUID to discover real chapter list."""
+    import uuid
+    from notebooklm_tools.services.auth import AuthManager
+    from notebooklm_tools.core.client import NotebookLMClient
+    
+    auth = AuthManager()
+    profile = auth.load_profile()
+    client = NotebookLMClient(cookies=profile.cookies, csrf_token=profile.csrf_token, session_id=profile.session_id)
+    fresh_conv_id = str(uuid.uuid4())
+    prompt = (
+        "請僅依據來源書籍本身的實際內容（不要包含附錄、注釋、參考書目等非正文部分），"
+        "列出這本書「正文」的完整章節目錄清單，格式為：\n"
+        "第X章：章節標題\n"
+        "請勿自行推測或延伸不存在的章節，如果全書只到第 N 章，請明確只列出 N 個項目，"
+        "並在最後一行註明：「總章節數：N」。"
+    )
+    res = client.query(notebook_id, prompt, conversation_id=fresh_conv_id)
+    return res.get("answer", "") if res else ""
     parser = argparse.ArgumentParser(description="Initialize NotebookLM source rules & local cover.")
     parser.add_argument("--notebook-id", help="NotebookLM notebook ID")
     parser.add_argument("--book-path", help="Path to local book file (EPUB/PDF)")
+    parser.add_argument("--title", help="Book title")
     args = parser.parse_args()
 
     config_path = os.path.join("config", "book_config.yaml")
@@ -60,6 +95,7 @@ def main():
 
     notebook_id = args.notebook_id or config.get("notebook_id")
     book_local_path = args.book_path or config.get("book_local_path", "")
+    book_title = args.title or config.get("book_title", "")
     rule_filename = config.get("rule_source_filename", "讀書報告核心概念.md")
     rule_source_path = os.path.join("source", rule_filename)
 
@@ -70,7 +106,8 @@ def main():
     print(f"Initializing Notebook ID: {notebook_id}")
 
     if book_local_path and os.path.exists(book_local_path):
-        cover_out_path = os.path.join("final", "cover.jpg")
+        cover_out_dir = os.path.join("final", book_title) if book_title else "final"
+        cover_out_path = os.path.join(cover_out_dir, "cover.jpg")
         extract_epub_cover(book_local_path, cover_out_path)
 
     print("Checking existing sources in notebook...")

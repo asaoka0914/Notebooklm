@@ -11,13 +11,26 @@ Thumbs.db
 *.tmp
 ~$*
 
-# 敏感資訊與密鑰檔
+# 敏感資訊與密鑰檔 (API Keys, Cookies, Credentials)
 .env
 .env.*
 *.key
 *.pem
 credentials.json
 client_secret*.json
+*.cookie
+profiles/
+config/auth*.yaml
+
+# 書籍原始檔案與擷取產出資料 (書籍檔、圖片與生成報告)
+*.epub
+*.pdf
+*.mobi
+*.azw3
+raw_outputs/
+final/
+config/book_config.yaml
+config/book_toc.json
 
 # 壓縮包與依賴檔
 *.zip
