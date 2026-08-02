@@ -1,0 +1,25 @@
+# AI Agent 與 IDE 本地設定 (嚴禁提交 GitHub)
+.gemini/
+.claude/
+.vscode/
+.idea/
+
+# 系統與雲端同步暫存檔
+desktop.ini
+.DS_Store
+Thumbs.db
+*.tmp
+~$*
+
+# 敏感資訊與密鑰檔
+.env
+.env.*
+*.key
+*.pem
+credentials.json
+client_secret*.json
+
+# 壓縮包與依賴檔
+*.zip
+*.tar.gz
+node_modules/

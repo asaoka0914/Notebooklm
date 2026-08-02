@@ -1,0 +1,24 @@
+book_title: "A Richer Retirement"
+notebook_id: "d7ec78f8-4df3-44ea-95ff-ea6939058106"
+rule_source_filename: "讀書報告核心概念.md"
+
+batch_strategy:
+  default_batch_size: 2
+  batch_delay_seconds: 8
+  batches:
+    - batch: 1
+      chapters: ["Chapter 1", "Chapter 2"]
+    - batch: 2
+      chapters: ["Chapter 3", "Chapter 4"]
+    - batch: 3
+      chapters: ["Chapter 5", "Chapter 6"]
+    - batch: 4
+      chapters: ["Chapter 7", "Chapter 8"]
+    - batch: 5
+      chapters: ["Chapter 9", "Chapter 10"]
+    - batch: 6
+      chapters: ["Chapter 11", "Chapter 12"]
+    - batch: 7
+      chapters: ["Chapter 13", "Chapter 14"]
+    - batch: 8
+      chapters: ["Chapter 15", "Chapter 16"]
