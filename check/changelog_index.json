@@ -1,5 +1,16 @@
 [
   {
+    "time": "2026-08-02 19:55",
+    "title": "完成 NotebookLM Pipeline 自動化與封面/清單/過濾追加功能",
+    "files": [
+      "scripts/01_init_notebook.py",
+      "scripts/02_batch_generate.py",
+      "scripts/03_assemble_report.py",
+      "scripts/04_qc_check.py"
+    ],
+    "status": "✅完成"
+  },
+  {
     "time": "2026-08-02 16:30",
     "title": "專案初始化",
     "files": [

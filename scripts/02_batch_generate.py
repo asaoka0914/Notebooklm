@@ -1,8 +1,9 @@
 import os
 import sys
-import time
 import json
+import time
 import re
+import argparse
 import subprocess
 import yaml
 
@@ -83,16 +84,28 @@ def run_query_via_cli(notebook_id, prompt, timeout_sec=300):
     return None
 
 def run_batch_generation():
-    config_path = os.path.join("config", "book_config.yaml")
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
+    parser = argparse.ArgumentParser(description="Batch generate book report using NotebookLM.")
+    parser.add_argument("--notebook-id", help="NotebookLM notebook ID")
+    parser.add_argument("--title", help="Book title")
+    args = parser.parse_args()
 
-    notebook_id = config.get("notebook_id")
+    config_path = os.path.join("config", "book_config.yaml")
+    config = {}
+    if os.path.exists(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+
+    notebook_id = args.notebook_id or config.get("notebook_id")
+    book_title = args.title or config.get("book_title", "default_book")
     batch_strategy = config.get("batch_strategy", {})
     batches = batch_strategy.get("batches", [])
     delay_sec = batch_strategy.get("batch_delay_seconds", 8)
 
-    raw_dir = "raw_outputs"
+    if not notebook_id:
+        print("Error: notebook_id is missing.")
+        sys.exit(1)
+
+    raw_dir = os.path.join("raw_outputs", book_title)
     os.makedirs(raw_dir, exist_ok=True)
 
     failed_batches = []

@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import re
+import argparse
 import yaml
 
 sys.stdout.reconfigure(encoding='utf-8')
@@ -76,18 +77,26 @@ def parse_citations(text, citation_map, batch_offset):
     return re.sub(pattern, remap_match, text)
 
 def assemble_report():
-    config_path = os.path.join("config", "book_config.yaml")
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
+    parser = argparse.ArgumentParser(description="Assemble report JSONs into Markdown.")
+    parser.add_argument("--title", help="Book title")
+    args = parser.parse_args()
 
-    book_title = config.get("book_title", "讀書報告")
-    raw_dir = "raw_outputs"
-    final_dir = "final"
+    config_path = os.path.join("config", "book_config.yaml")
+    config = {}
+    if os.path.exists(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+
+    book_title = args.title or config.get("book_title", "讀書報告")
+    
+    # 支援子資料夾 (raw_outputs/<book_title>) 與根目錄雙相容
+    raw_dir = os.path.join("raw_outputs", book_title) if os.path.exists(os.path.join("raw_outputs", book_title)) else "raw_outputs"
+    final_dir = os.path.join("final", book_title) if args.title else "final"
     os.makedirs(final_dir, exist_ok=True)
 
     batch_files = sorted([f for f in os.listdir(raw_dir) if f.startswith("batch_") and f.endswith(".json")])
     if not batch_files:
-        print("Error: No batch JSON files found in raw_outputs.")
+        print(f"Error: No batch JSON files found in {raw_dir}.")
         sys.exit(1)
 
     full_markdown_parts = []
@@ -148,7 +157,8 @@ def assemble_report():
             c_txt = ref_item["text"]
             full_markdown_parts.append(f"[{c_id}] \"{c_txt}\"\n\n")
 
-    final_report_path = os.path.join(final_dir, "full_report.md")
+    final_report_filename = f"{book_title}.md"
+    final_report_path = os.path.join(final_dir, final_report_filename)
     with open(final_report_path, "w", encoding="utf-8") as wf:
         wf.write('\n'.join(full_markdown_parts))
 
