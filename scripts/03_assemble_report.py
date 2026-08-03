@@ -26,8 +26,8 @@ def normalize_headings(text):
     
     for line in lines:
         stripped = line.strip()
-        # 1. 識別章節大標題 (如：#### 第 1 章：... 或 #### CHAPTER 1...)
-        if re.match(r'^(?:#{1,6}\s*)?(?:第\s*\d+\s*章|第[一二三四五六七八九十]+\s*章|CHAPTER\s*\d+)', stripped, re.IGNORECASE):
+        # 1. 識別章節大標題 (如：#### 洞察市場真實面... 或 #### 第 1 章：... 或 #### CHAPTER 1...)
+        if re.match(r'^(?:#{1,6}\s*)?(?:洞察市場真實面|第\s*\d+\s*章|第[一二三四五六七八九十]+\s*章|CHAPTER\s*\d+|前言|總結|附錄)', stripped, re.IGNORECASE):
             clean_title = re.sub(r'^#{1,6}\s*', '', stripped)
             norm_lines.append(f"\n## {clean_title}\n")
         # 2. 識別子結構 (如：##### 1.1 ..., 📌 核心概念, 💡 重點擷取)
@@ -102,13 +102,30 @@ def assemble_report():
     full_markdown_parts = []
     full_markdown_parts.append(f"# 《{book_title}》全書導讀與深度分析報告\n")
 
-    # 檢查是否有提取好的 cover.jpg，轉為 Base64 直接內嵌
+    # 檢查是否有提取好的 cover.jpg，轉為 Base64 直接內嵌（縮小長寬至 50%，面積與體積變為 1/4）
     cover_image_path = os.path.join(final_dir, "cover.jpg")
     if os.path.exists(cover_image_path):
         import base64
-        with open(cover_image_path, "rb") as img_f:
-            b64_str = base64.b64encode(img_f.read()).decode("utf-8")
-        full_markdown_parts.append(f"\n![書籍封面](data:image/jpeg;base64,{b64_str})\n")
+        import io
+        from PIL import Image
+        
+        try:
+            with Image.open(cover_image_path) as img:
+                # 實體長寬再縮至 50%
+                new_width = max(1, img.width // 2)
+                new_height = max(1, img.height // 2)
+                resized_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                
+                buffer = io.BytesIO()
+                resized_img.convert("RGB").save(buffer, format="JPEG", quality=85)
+                b64_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                # 使用 HTML img 標籤限定顯示寬度為 300px (Obsidian 即時渲染最合適尺寸)
+                full_markdown_parts.append(f'\n<img src="data:image/jpeg;base64,{b64_str}" alt="書籍封面" width="300" />\n')
+        except Exception as e:
+            print(f"Warning: Failed to process cover image resizing: {e}")
+            with open(cover_image_path, "rb") as img_f:
+                b64_str = base64.b64encode(img_f.read()).decode("utf-8")
+            full_markdown_parts.append(f'\n<img src="data:image/jpeg;base64,{b64_str}" alt="書籍封面" width="300" />\n')
         # 內嵌後可選擇保留或移除獨立圖片，此處留存全內嵌單一檔案
 
     full_markdown_parts.append("\n---\n")

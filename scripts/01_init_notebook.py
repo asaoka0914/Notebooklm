@@ -34,7 +34,7 @@ def extract_epub_cover(book_path, output_cover_path):
                         cover_href = item.attrib.get('href')
                         break
 
-            if cover_href:
+            if cover_href and not cover_href.endswith('.xhtml') and not cover_href.endswith('.html'):
                 img_zip_path = os.path.normpath(os.path.join(opf_dir, cover_href)).replace('\\', '/')
                 img_data = z.read(img_zip_path)
                 os.makedirs(os.path.dirname(output_cover_path), exist_ok=True)
@@ -42,6 +42,22 @@ def extract_epub_cover(book_path, output_cover_path):
                     img_out.write(img_data)
                 print(f"✅ Successfully extracted EPUB cover to {output_cover_path}")
                 return True
+            else:
+                # 嘗試直接從 manifest 找 image/cover.jpg
+                for item in manifest.findall('{http://www.idpf.org/2007/opf}item'):
+                    href = item.attrib.get('href', '')
+                    if ('cover' in href.lower() or 'cover' in item.attrib.get('id', '').lower()) and (href.endswith('.jpg') or href.endswith('.png') or href.endswith('.jpeg')):
+                        img_zip_path = os.path.normpath(os.path.join(opf_dir, href)).replace('\\', '/')
+                        img_data = z.read(img_zip_path)
+                        os.makedirs(os.path.dirname(output_cover_path), exist_ok=True)
+                        with open(output_cover_path, 'wb') as img_out:
+                            img_out.write(img_data)
+                        print(f"✅ Successfully extracted EPUB cover image to {output_cover_path}")
+                        return True
+    except Exception as e:
+        print(f"⚠️ Failed to extract EPUB cover: {e}")
+    return False
+
 def extract_epub_toc(book_path):
     if not os.path.exists(book_path) or not book_path.lower().endswith(".epub"):
         return []
@@ -81,11 +97,23 @@ def discover_actual_toc(notebook_id):
     )
     res = client.query(notebook_id, prompt, conversation_id=fresh_conv_id)
     return res.get("answer", "") if res else ""
+
+def init_notebook():
     parser = argparse.ArgumentParser(description="Initialize NotebookLM source rules & local cover.")
     parser.add_argument("--notebook-id", help="NotebookLM notebook ID")
     parser.add_argument("--book-path", help="Path to local book file (EPUB/PDF)")
     parser.add_argument("--title", help="Book title")
+    parser.add_argument("--relogin", action="store_true", help="Clear localized session and force Chrome login before running.")
     args = parser.parse_args()
+
+    if args.relogin:
+        print("🚀 [Relogin] 正在清除舊 Session 並彈出 Chrome 瀏覽器登入新 Google 帳號...")
+        try:
+            app(['login', '--clear', '--force'])
+            print("✅ 新帳號登入完成！繼續執行初始化...\n")
+        except Exception as e:
+            print(f"❌ 登入失敗: {e}")
+            sys.exit(1)
 
     config_path = os.path.join("config", "book_config.yaml")
     config = {}
@@ -132,11 +160,12 @@ def discover_actual_toc(notebook_id):
 
     rule_exists = False
     for s in sources:
-        title = s.get("title", "")
-        if "讀書報告核心概念" in title or rule_filename in title:
-            rule_exists = True
-            print(f"Found rule source: {title} (ID: {s.get('id')})")
-            break
+        if isinstance(s, dict):
+            title = s.get("title", "")
+            if "讀書報告核心概念" in title or rule_filename in title:
+                rule_exists = True
+                print(f"Found rule source: {title} (ID: {s.get('id')})")
+                break
 
     if not rule_exists:
         print(f"Rule source not found. Uploading {rule_source_path}...")
@@ -152,4 +181,4 @@ def discover_actual_toc(notebook_id):
         print("Rule source already present in notebook. Skipping upload.")
 
 if __name__ == "__main__":
-    main()
+    init_notebook()

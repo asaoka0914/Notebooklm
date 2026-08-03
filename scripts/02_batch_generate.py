@@ -54,40 +54,56 @@ def extract_summary(previous_batch_json):
         return ""
 
 def run_query_via_cli(notebook_id, prompt, timeout_sec=300):
-    """透過獨立 subprocess 執行 CLI query，顯式傳入 --timeout"""
-    cmd = [
-        sys.executable, "-c",
-        "import sys, json; sys.stdout.reconfigure(encoding='utf-8'); "
-        "from notebooklm_tools.cli.main import app; "
-        f"app(['query', 'notebook', '{notebook_id}', {json.dumps(prompt, ensure_ascii=False)}, '--json', '--timeout', '{timeout_sec}'])"
-    ]
+    """直接調用 notebooklm_tools Python API 執行 query，支援限流時互動式彈出 Chrome 重新登入/切換帳號"""
+    from notebooklm_tools.services.auth import AuthManager
+    from notebooklm_tools.core.client import NotebookLMClient
+    from notebooklm_tools.cli.main import app as cli_app
     
-    res = subprocess.run(cmd, capture_output=True, text=False, timeout=timeout_sec + 40)
-    raw_bytes = res.stdout
+    max_retries = 3
     
-    if res.returncode != 0:
-        err_msg = res.stderr.decode('utf-8', errors='ignore') if res.stderr else "CLI execution non-zero exit code."
-        print(f"    [CLI Error]: {err_msg[:300]}")
-    
-    idx = raw_bytes.find(b'{')
-    if idx != -1:
-        json_bytes = raw_bytes[idx:]
+    for attempt in range(1, max_retries + 1):
+        # 每次嘗試前重新載入最新憑證（確保手動登入後能即時使用新帳號）
+        auth = AuthManager()
+        profile = auth.load_profile()
+        client = NotebookLMClient(cookies=profile.cookies, csrf_token=profile.csrf_token, session_id=profile.session_id)
+        
         try:
-            json_str = json_bytes.decode('utf-8')
-            return json.loads(json_str, strict=False)
-        except Exception:
-            try:
-                json_str = json_bytes.decode('utf-16')
-                return json.loads(json_str, strict=False)
-            except Exception:
-                pass
+            res = client.query(notebook_id, prompt)
+            if res and isinstance(res, dict) and res.get("answer"):
+                return res
+        except Exception as e:
+            err_msg = str(e)
+            if "RESOURCE_EXHAUSTED" in err_msg or "error code 8" in err_msg:
+                print("\n" + "="*70)
+                print("⚠️ [Quota Limit Alert] 當前 Google 帳號 NotebookLM 今日配額已達上限！")
+                print("👉 請在您的 Terminal 貼上並執行以下指令彈出 Chrome 切換 Google 帳號：")
+                print("   python -c \"from notebooklm_tools.cli.main import app; app(['login', '--clear', '--force'])\"")
+                print("="*70 + "\n")
+                return None
+            else:
+                print(f"    [SDK Error]: {err_msg[:300]}")
+                
+        if attempt < max_retries:
+            time.sleep(3)
+            
     return None
 
 def run_batch_generation():
     parser = argparse.ArgumentParser(description="Batch generate book report using NotebookLM.")
     parser.add_argument("--notebook-id", help="NotebookLM notebook ID")
     parser.add_argument("--title", help="Book title")
+    parser.add_argument("--relogin", action="store_true", help="Clear localized session and force Chrome login before running.")
     args = parser.parse_args()
+
+    if args.relogin:
+        from notebooklm_tools.cli.main import app as cli_app
+        print("🚀 [Relogin] 正在清除舊 Session 並彈出 Chrome 瀏覽器登入新 Google 帳號...")
+        try:
+            cli_app(['login', '--clear', '--force'])
+            print("✅ 新帳號登入完成！繼續執行批次生成...\n")
+        except Exception as e:
+            print(f"❌ 登入失敗: {e}")
+            sys.exit(1)
 
     config_path = os.path.join("config", "book_config.yaml")
     config = {}
