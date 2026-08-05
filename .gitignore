@@ -33,7 +33,6 @@ check/
 config/book_config.yaml
 config/book_toc.json
 notebooklm_pipeline_spec_v2.md
-book-reader_SKILL.md
 
 # 壓縮包與依賴檔
 *.zip
