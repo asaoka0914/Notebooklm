@@ -7,26 +7,30 @@ import yaml
 
 sys.stdout.reconfigure(encoding='utf-8')
 
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
 def qc_check():
     parser = argparse.ArgumentParser(description="QC check for assembled book report.")
     parser.add_argument("--title", help="Book title")
     args = parser.parse_args()
 
-    config_path = os.path.join("config", "book_config.yaml")
+    config_path = os.path.join(BASE_DIR, "config", "book_config.yaml")
     config = {}
     if os.path.exists(config_path):
         with open(config_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
 
     book_title = args.title or config.get("book_title", "")
-    if args.title and os.path.exists(os.path.join("final", book_title, f"{book_title}.md")):
-        report_path = os.path.join("final", book_title, f"{book_title}.md")
-    elif args.title and os.path.exists(os.path.join("final", book_title, "full_report.md")):
-        report_path = os.path.join("final", book_title, "full_report.md")
+    if args.title and os.path.exists(os.path.join(BASE_DIR, "final", book_title, f"{book_title}.md")):
+        report_path = os.path.join(BASE_DIR, "final", book_title, f"{book_title}.md")
+    elif args.title and os.path.exists(os.path.join(BASE_DIR, "final", book_title, "full_report.md")):
+        report_path = os.path.join(BASE_DIR, "final", book_title, "full_report.md")
+    elif os.path.exists(os.path.join(BASE_DIR, "final", "full_report.md")):
+        report_path = os.path.join(BASE_DIR, "final", "full_report.md")
     else:
-        report_path = os.path.join("final", "full_report.md")
+        report_path = os.path.join(BASE_DIR, "final", book_title, f"{book_title}.md")
 
-    failed_path = "failed_batches.json"
+    failed_path = os.path.join(BASE_DIR, "failed_batches.json")
 
     print("==========================================")
     print("      Starting Automated QC Check         ")

@@ -88,6 +88,8 @@ def run_query_via_cli(notebook_id, prompt, timeout_sec=300):
             
     return None
 
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
 def run_batch_generation():
     parser = argparse.ArgumentParser(description="Batch generate book report using NotebookLM.")
     parser.add_argument("--notebook-id", help="NotebookLM notebook ID")
@@ -105,7 +107,7 @@ def run_batch_generation():
             print(f"❌ 登入失敗: {e}")
             sys.exit(1)
 
-    config_path = os.path.join("config", "book_config.yaml")
+    config_path = os.path.join(BASE_DIR, "config", "book_config.yaml")
     config = {}
     if os.path.exists(config_path):
         with open(config_path, "r", encoding="utf-8") as f:
@@ -121,7 +123,7 @@ def run_batch_generation():
         print("Error: notebook_id is missing.")
         sys.exit(1)
 
-    raw_dir = os.path.join("raw_outputs", book_title)
+    raw_dir = os.path.join(BASE_DIR, "raw_outputs", book_title)
     os.makedirs(raw_dir, exist_ok=True)
 
     failed_batches = []
@@ -216,9 +218,10 @@ def run_batch_generation():
         time.sleep(delay_sec)
 
     if failed_batches:
-        with open("failed_batches.json", "w", encoding="utf-8") as ff:
+        failed_batches_path = os.path.join(BASE_DIR, "failed_batches.json")
+        with open(failed_batches_path, "w", encoding="utf-8") as ff:
             json.dump(failed_batches, ff, ensure_ascii=False, indent=2)
-        print(f"\n[Notice] Batch generation finished with failed items. Details in failed_batches.json")
+        print(f"\n[Notice] Batch generation finished with failed items. Details in {failed_batches_path}")
     else:
         print(f"\n[Complete] All batches generated successfully!")
 

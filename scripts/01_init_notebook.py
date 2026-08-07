@@ -98,7 +98,94 @@ def discover_actual_toc(notebook_id):
     res = client.query(notebook_id, prompt, conversation_id=fresh_conv_id)
     return res.get("answer", "") if res else ""
 
+def ensure_auth():
+    """檢查認證有效性，過期時自動啟動 Chrome headless 重認證。"""
+    try:
+        from notebooklm_tools.core.auth import check_auth, save_tokens_to_cache
+        from notebooklm_tools.utils.auth_browser import run_headless_auth
+    except ImportError:
+        print("Notice: notebooklm_tools inner auth modules not available for auto-recovery check.")
+        return True
+
+    import subprocess, time, os
+
+    result = check_auth(profile='default', live=True)
+    if getattr(result, 'valid', False):
+        return True
+
+    print("⚠️  認證過期，嘗試自動恢復...")
+
+    # 1. 先嘗試 headless auth（需要 Chrome 已以 --remote-debugging-port 啟動）
+    try:
+        tokens = run_headless_auth(profile_name='default', timeout=60)
+        if tokens:
+            print("✅ 認證已自動恢復（透過現有 Chrome CDP）")
+            return True
+    except Exception:
+        pass
+
+    # 2. 啟動 Chrome 偵錯模式
+    import shutil
+    chrome_path = shutil.which('chrome') or _find_chrome_path()
+    if not chrome_path:
+        print("❌ 無法找到 Chrome，請手動執行: python -c \"from notebooklm_tools.cli.main import app; app(['login', '--clear', '--force'])\"")
+        return False
+
+    print("🚀 啟動 Chrome 偵錯模式...")
+    user_data_dir = os.path.join(os.environ.get('LOCALAPPDATA', ''), r'Google\Chrome\User Data\Default')
+    chrome_proc = subprocess.Popen([
+        chrome_path,
+        '--remote-debugging-port=9223',
+        '--no-first-run',
+        '--no-default-browser-check',
+        f'--user-data-dir={user_data_dir}',
+    ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    # 等待 CDP 就緒
+    for i in range(15):
+        time.sleep(1)
+        try:
+            import urllib.request
+            urllib.request.urlopen('http://127.0.0.1:9223/json', timeout=2)
+            break
+        except Exception:
+            if i == 14:
+                chrome_proc.terminate()
+                print("❌ Chrome CDP 無法就緒")
+                return False
+
+    # 3. 再次嘗試 headless auth
+    tokens = None
+    try:
+        tokens = run_headless_auth(port=9223, profile_name='default', timeout=60)
+    except Exception as e:
+        print(f"Headless auth execution failed: {e}")
+
+    chrome_proc.terminate()
+
+    if tokens:
+        try:
+            save_tokens_to_cache(tokens)
+            print("✅ 認證已自動恢復（透過自動啟動 Chrome）")
+            return True
+        except Exception:
+            pass
+
+    print("❌ 自動認證恢復失敗，請手動執行: python -c \"from notebooklm_tools.cli.main import app; app(['login', '--clear', '--force'])\"")
+    return False
+
+def _find_chrome_path():
+    """在 Windows 上尋找 Chrome 可執行檔。"""
+    import glob
+    candidates = glob.glob(r'C:\Program Files\Google\Chrome\Application\chrome.exe')
+    candidates += glob.glob(r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe')
+    return candidates[0] if candidates else None
+
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
 def init_notebook():
+    if not ensure_auth():
+        sys.exit(1)
     parser = argparse.ArgumentParser(description="Initialize NotebookLM source rules & local cover.")
     parser.add_argument("--notebook-id", help="NotebookLM notebook ID")
     parser.add_argument("--book-path", help="Path to local book file (EPUB/PDF)")
@@ -115,7 +202,7 @@ def init_notebook():
             print(f"❌ 登入失敗: {e}")
             sys.exit(1)
 
-    config_path = os.path.join("config", "book_config.yaml")
+    config_path = os.path.join(BASE_DIR, "config", "book_config.yaml")
     config = {}
     if os.path.exists(config_path):
         with open(config_path, "r", encoding="utf-8") as f:
@@ -125,7 +212,9 @@ def init_notebook():
     book_local_path = args.book_path or config.get("book_local_path", "")
     book_title = args.title or config.get("book_title", "")
     rule_filename = config.get("rule_source_filename", "讀書報告核心概念.md")
-    rule_source_path = os.path.join("source", rule_filename)
+    rule_source_path = os.path.join(BASE_DIR, rule_filename)
+    if not os.path.exists(rule_source_path):
+        rule_source_path = os.path.join(BASE_DIR, "source", rule_filename)
 
     if not notebook_id:
         print("Error: notebook_id is missing in CLI args or config.")
@@ -134,7 +223,7 @@ def init_notebook():
     print(f"Initializing Notebook ID: {notebook_id}")
 
     if book_local_path and os.path.exists(book_local_path):
-        cover_out_dir = os.path.join("final", book_title) if book_title else "final"
+        cover_out_dir = os.path.join(BASE_DIR, "final", book_title) if book_title else os.path.join(BASE_DIR, "final")
         cover_out_path = os.path.join(cover_out_dir, "cover.jpg")
         extract_epub_cover(book_local_path, cover_out_path)
 

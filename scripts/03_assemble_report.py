@@ -76,12 +76,67 @@ def parse_citations(text, citation_map, batch_offset):
 
     return re.sub(pattern, remap_match, text)
 
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+def clean_forbidden_phrases(text):
+    """移除 NotebookLM 產出中的主觀解讀詞。"""
+    forbidden = {
+        '這顯示': '數據表明',
+        '這意味著': '這表示',
+        '這說明': '這表明',
+        '這反映了': '這體現了',
+        '這代表': '這標誌著',
+        '值得注意的是': '',
+        '可以發現': '',
+        '由此可見': '',
+    }
+    for old, new in forbidden.items():
+        text = text.replace(old, new)
+    return text
+
+def find_obsidian_raw_dir():
+    """動態搜尋 Obsidian BoBo-wiki raw 目錄。"""
+    candidates = []
+    home = os.path.expanduser('~')
+
+    search_paths = [
+        os.path.join(home, 'Desktop', 'Project', 'Obsidian', 'BoBo-wiki', 'raw'),
+        os.path.join(home, 'Desktop', 'obsidian', 'BoBo-wiki', 'raw'),
+        r'G:\我的雲端硬碟\Obsidian\BoBo-wiki\raw',
+        os.path.join(home, 'OneDrive', 'Obsidian', 'BoBo-wiki', 'raw'),
+        os.path.join(home, 'Desktop', '我的雲端硬碟', 'Obsidian', 'BoBo-wiki', 'raw'),
+        os.path.join(home, 'Obsidian', 'BoBo-wiki', 'raw'),
+    ]
+
+    for p in search_paths:
+        if os.path.isdir(p):
+            candidates.append(p)
+
+    desktop = os.path.join(home, 'Desktop')
+    if os.path.isdir(desktop):
+        for entry in os.listdir(desktop):
+            candidate = os.path.join(desktop, entry, 'Obsidian', 'BoBo-wiki', 'raw')
+            if os.path.isdir(candidate):
+                if candidate not in candidates:
+                    candidates.append(candidate)
+
+    if not candidates:
+        print("⚠️  警告：未找到 Obsidian BoBo-wiki/raw 目錄，報告僅儲存於技能 final/ 目錄")
+        return None
+
+    for cand in candidates:
+        md_files = [f for f in os.listdir(cand) if f.endswith('_讀書報告.md') or f.endswith('.md')]
+        if md_files:
+            return cand
+
+    return candidates[0]
+
 def assemble_report():
     parser = argparse.ArgumentParser(description="Assemble report JSONs into Markdown.")
     parser.add_argument("--title", help="Book title")
     args = parser.parse_args()
 
-    config_path = os.path.join("config", "book_config.yaml")
+    config_path = os.path.join(BASE_DIR, "config", "book_config.yaml")
     config = {}
     if os.path.exists(config_path):
         with open(config_path, "r", encoding="utf-8") as f:
@@ -90,8 +145,8 @@ def assemble_report():
     book_title = args.title or config.get("book_title", "讀書報告")
     
     # 支援子資料夾 (raw_outputs/<book_title>) 與根目錄雙相容
-    raw_dir = os.path.join("raw_outputs", book_title) if os.path.exists(os.path.join("raw_outputs", book_title)) else "raw_outputs"
-    final_dir = os.path.join("final", book_title) if args.title else "final"
+    raw_dir = os.path.join(BASE_DIR, "raw_outputs", book_title) if os.path.exists(os.path.join(BASE_DIR, "raw_outputs", book_title)) else os.path.join(BASE_DIR, "raw_outputs")
+    final_dir = os.path.join(BASE_DIR, "final", book_title) if args.title else os.path.join(BASE_DIR, "final")
     os.makedirs(final_dir, exist_ok=True)
 
     batch_files = sorted([f for f in os.listdir(raw_dir) if f.startswith("batch_") and f.endswith(".json")])
@@ -126,7 +181,8 @@ def assemble_report():
             with open(cover_image_path, "rb") as img_f:
                 b64_str = base64.b64encode(img_f.read()).decode("utf-8")
             full_markdown_parts.append(f'\n<img src="data:image/jpeg;base64,{b64_str}" alt="書籍封面" width="300" />\n')
-        # 內嵌後可選擇保留或移除獨立圖片，此處留存全內嵌單一檔案
+    else:
+        print(f"⚠️ [Warning] Cover image not found at {cover_image_path}. Assembling report without cover image.")
 
     full_markdown_parts.append("\n---\n")
 
@@ -162,9 +218,11 @@ def assemble_report():
         answer = data.get("answer", "")
         # 1. 剔除涵蓋度自我檢查清單
         clean_answer = remove_checklist_sections(answer)
-        # 2. 標題正規化
+        # 2. 清理禁止詞
+        clean_answer = clean_forbidden_phrases(clean_answer)
+        # 3. 標題正規化
         norm_answer = normalize_headings(clean_answer)
-        # 3. 腳註重編號
+        # 4. 腳註重編號
         remapped_answer = parse_citations(norm_answer, citation_map, b_idx)
         
         full_markdown_parts.append(remapped_answer)
@@ -186,6 +244,17 @@ def assemble_report():
     print(f"[Success] Assembled full report saved to {final_report_path}")
     print(f"Total Sections Processed: {len(batch_files)}")
     print(f"Total Citations Remapped: {len(references_list)}")
+
+    # 自動複製至 Obsidian
+    obsidian_dir = find_obsidian_raw_dir()
+    if obsidian_dir:
+        short_title = book_title.split('：')[0] if '：' in book_title else book_title
+        obsidian_path = os.path.join(obsidian_dir, f"{short_title}_讀書報告.md")
+        import shutil
+        shutil.copy2(final_report_path, obsidian_path)
+        print(f"✅ 報告已複製至 Obsidian：{obsidian_path}")
+    else:
+        print("⚠️  未找到 Obsidian 目錄，報告請手動複製至目標路徑")
 
 if __name__ == "__main__":
     assemble_report()

@@ -1,0 +1,15 @@
+# book_config.yaml.template
+# 建議每批次包含 2 個章節，確保產出品質與單章篇幅深達 1000 字以上
+
+notebook_id: ""
+book_title: ""
+book_local_path: ""
+rule_source_filename: "讀書報告核心概念.md"
+
+batch_strategy:
+  batches:
+    - batch: 1
+      chapters: ["第 1 章 ...", "第 2 章 ..."]
+    - batch: 2
+      chapters: ["第 3 章 ...", "第 4 章 ..."]
+  batch_delay_seconds: 8
