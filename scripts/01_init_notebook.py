@@ -181,6 +181,8 @@ def _find_chrome_path():
     candidates += glob.glob(r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe')
     return candidates[0] if candidates else None
 
+from _auth_utils import ensure_auth
+
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 def init_notebook():
@@ -228,10 +230,28 @@ def init_notebook():
 
     print(f"Initializing Notebook ID: {notebook_id}")
 
+    # 解析並儲存 Ground Truth TOC json
+    gt_chapters = []
     if book_local_path and os.path.exists(book_local_path):
         cover_out_dir = os.path.join(BASE_DIR, "final", book_title) if book_title else os.path.join(BASE_DIR, "final")
         cover_out_path = os.path.join(cover_out_dir, "cover.jpg")
         extract_epub_cover(book_local_path, cover_out_path)
+        gt_chapters = extract_epub_toc(book_local_path)
+    
+    if not gt_chapters:
+        raw_gt = discover_actual_toc(notebook_id)
+        if raw_gt:
+            for line in raw_gt.split('\n'):
+                line_str = line.strip()
+                if line_str and ("章" in line_str or "Chapter" in line_str or "法則" in line_str):
+                    gt_chapters.append(line_str)
+
+    if gt_chapters:
+        gt_json_path = os.path.join(BASE_DIR, "config", "ground_truth_toc.json")
+        import json
+        with open(gt_json_path, "w", encoding="utf-8") as gtf:
+            json.dump({"total_chapters": len(gt_chapters), "chapters": gt_chapters}, gtf, ensure_ascii=False, indent=2)
+        print(f"✅ Ground Truth TOC saved with {len(gt_chapters)} chapters to {gt_json_path}")
 
     print("Checking existing sources in notebook...")
     import io

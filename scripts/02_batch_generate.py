@@ -53,16 +53,42 @@ def extract_summary(previous_batch_json):
     except Exception:
         return ""
 
+from _auth_utils import ensure_auth, is_auth_error, get_profile_metadata
+
+def wait_for_account_switch(timeout_sec=300):
+    """
+    當遇 RESOURCE_EXHAUSTED 限流時，阻塞式輪詢等待使用者完成 Google 帳號切換。
+    具體監控指標：Profile 檔案 mtime 與 session_id 變更，且 check_auth(live=True) 通過。
+    """
+    old_session, old_mtime = get_profile_metadata()
+    print("\n" + "="*70)
+    print("⚠️ [Quota Limit Alert] 當前 Google 帳號 NotebookLM 今日配額已達上限！")
+    print("👉 請在 Terminal 執行 `python -c \"from notebooklm_tools.cli.main import app; app(['login', '--clear', '--force'])\"` 登入新帳號。")
+    print(f"⏳ 進入阻塞輪詢等待中 (最長 {timeout_sec} 秒)...")
+    print("="*70 + "\n")
+
+    start_time = time.time()
+    while time.time() - start_time < timeout_sec:
+        time.sleep(5)
+        curr_session, curr_mtime = get_profile_metadata()
+        if (curr_session and curr_session != old_session) or (curr_mtime and curr_mtime > old_mtime):
+            # 檢查新 token 是否有效
+            from notebooklm_tools.core.auth import check_auth
+            res = check_auth(profile='default', live=True)
+            if getattr(res, 'valid', False):
+                print("🎉 [Account Switched] 檢測到新帳號憑證已生效！自動 Resume 重試當前批次...")
+                return True
+    print("❌ 輪詢逾時，使用者未於時間內切換新帳號。")
+    return False
+
 def run_query_via_cli(notebook_id, prompt, timeout_sec=300):
-    """直接調用 notebooklm_tools Python API 執行 query，支援限流時互動式彈出 Chrome 重新登入/切換帳號"""
+    """直接調用 notebooklm_tools Python API 執行 query，支援中途 Token 恢復與限流時輪詢等待"""
     from notebooklm_tools.services.auth import AuthManager
     from notebooklm_tools.core.client import NotebookLMClient
-    from notebooklm_tools.cli.main import app as cli_app
     
     max_retries = 3
     
     for attempt in range(1, max_retries + 1):
-        # 每次嘗試前重新載入最新憑證（確保手動登入後能即時使用新帳號）
         auth = AuthManager()
         profile = auth.load_profile()
         client = NotebookLMClient(cookies=profile.cookies, csrf_token=profile.csrf_token, session_id=profile.session_id)
@@ -74,12 +100,22 @@ def run_query_via_cli(notebook_id, prompt, timeout_sec=300):
         except Exception as e:
             err_msg = str(e)
             if "RESOURCE_EXHAUSTED" in err_msg or "error code 8" in err_msg:
-                print("\n" + "="*70)
-                print("⚠️ [Quota Limit Alert] 當前 Google 帳號 NotebookLM 今日配額已達上限！")
-                print("👉 請在您的 Terminal 貼上並執行以下指令彈出 Chrome 切換 Google 帳號：")
-                print("   python -c \"from notebooklm_tools.cli.main import app; app(['login', '--clear', '--force'])\"")
-                print("="*70 + "\n")
+                if wait_for_account_switch(timeout_sec=300):
+                    # 帳號切換成功，重新實例化 client
+                    auth = AuthManager()
+                    profile = auth.load_profile()
+                    client = NotebookLMClient(cookies=profile.cookies, csrf_token=profile.csrf_token, session_id=profile.session_id)
+                    continue
                 return None
+            elif is_auth_error(e):
+                print(f"⚠️ 檢測到執行中途 Token 旋轉/失效 ({err_msg[:100]})，嘗試中途自動恢復...")
+                if ensure_auth():
+                    # 關鍵：強制重新載入 profile 並建立新 Client 物件
+                    auth = AuthManager()
+                    profile = auth.load_profile()
+                    client = NotebookLMClient(cookies=profile.cookies, csrf_token=profile.csrf_token, session_id=profile.session_id)
+                    print("✅ 憑證與 Client 已重新載入，進行當前批次重試...")
+                    continue
             else:
                 print(f"    [SDK Error]: {err_msg[:300]}")
                 

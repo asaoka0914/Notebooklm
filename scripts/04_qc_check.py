@@ -69,9 +69,11 @@ def qc_check():
         print("❌ [FAIL] No H2 (##) chapter headings found in report.")
         passed_all = False
 
+    found_chapter_titles = []
     for c_idx, chap in enumerate(chap_blocks, start=1):
         lines = chap.strip().split('\n')
-        h2_title = lines[0] if lines else f"Chapter {c_idx}"
+        h2_title = lines[0].strip('# ').strip() if lines else f"Chapter {c_idx}"
+        found_chapter_titles.append(h2_title)
         chap_len = len(chap)
 
         # 檢查結構元素
@@ -84,6 +86,33 @@ def qc_check():
             passed_all = False
 
         print(f"{status_flag} {h2_title[:40]}... | Length: {chap_len} chars | Concept: {has_concept} | Details: {has_details}")
+
+    # 2.5 Ground Truth TOC 1對1核對 (Hard-Fail 檢驗)
+    gt_json_path = os.path.join(BASE_DIR, "config", "ground_truth_toc.json")
+    missing_chapters = []
+    if os.path.exists(gt_json_path):
+        print("\n--- 1.5 Ground Truth 1-to-1 Chapter Coverage Check ---")
+        try:
+            with open(gt_json_path, "r", encoding="utf-8") as gtf:
+                gt_data = json.load(gtf)
+            total_gt = gt_data.get("total_chapters", 0)
+            gt_chapters = gt_data.get("chapters", [])
+
+            for gt_chap in gt_chapters:
+                # 模糊匹配章節名稱
+                matched = any(gt_chap in fc or fc in gt_chap for fc in found_chapter_titles)
+                if not matched:
+                    missing_chapters.append(gt_chap)
+
+            if missing_chapters:
+                print(f"❌ [HARD-FAIL] 發現全書 {total_gt} 章節中，有 {len(missing_chapters)} 章節完全缺漏：")
+                for mc in missing_chapters:
+                    print(f"   ❌ 缺漏章節: {mc}")
+                passed_all = False
+            else:
+                print(f"✅ [PASS] 報告完整涵蓋全書 Ground Truth {total_gt} 章節，無任何遺漏！")
+        except Exception as e:
+            print(f"Notice: Failed to load Ground Truth TOC for QC check: {e}")
 
     # 3. 腳註一致性檢查 (雙向)
     print("\n--- 2. Citation Consistency Check ---")
@@ -130,6 +159,19 @@ def qc_check():
         print(f"⚠️ [WARN] Orphan citations in References not cited in text: {sorted(list(missing_in_text))}")
     else:
         print("✅ [PASS] No orphan citations in References.")
+
+    # 4. 判斷是否進行自動補課
+    parser.add_argument("--auto-backfill", action="store_true", help="Auto trigger 05_backfill.py if missing chapters found.")
+    args = parser.parse_args()
+
+    if missing_chapters and args.auto_backfill:
+        print("\n🚀 [Auto-Backfill] 偵測到缺漏章節且開啟 --auto-backfill，自動啟動 05_backfill.py...")
+        import importlib.util
+        bf_path = os.path.join(BASE_DIR, "scripts", "05_backfill.py")
+        spec = importlib.util.spec_from_file_location("backfill_mod", bf_path)
+        bf_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(bf_mod)
+        bf_mod.run_backfill(missing_chapters)
 
     print("\n==========================================")
     if passed_all:

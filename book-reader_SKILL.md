@@ -17,10 +17,11 @@ NotebookLM 本身的報告生成是黑箱——你送進去的 query 決定了�
 
 本技能已整合自動化 Python 腳本（位於本技能 `scripts/` 目錄下），所有腳本內部皆已以 `BASE_DIR` 絕對路徑進行檔案儲存與讀取。Agent 執行任務時**應優先呼叫此套 Python 腳本**處理：
 
-- `01_init_notebook.py`: 初始化筆記本、自動認證過期恢復 (`ensure_auth`)、解析 EPUB 目錄 (Ground Truth) 與提取封面圖片（縮放 50% 轉 Base64 寫入 `final/<book_title>/cover.jpg`）。
-- `02_batch_generate.py`: 批次查詢 NotebookLM（建議每批 2 章以確保單章篇幅達 1000 字以上）、防限流退避與帳號切換處理（輸出暫存至 `raw_outputs/<book_title>/`）。
+- `01_init_notebook.py`: 初始化筆記本、自動認證過期恢復 (`ensure_auth`)、解析 EPUB 目錄 (Ground Truth) 存成 `ground_truth_toc.json` 與提取封面圖片。
+- `02_batch_generate.py`: 批次查詢 NotebookLM（支援中途 Token 恢復、過期自動重載 Client 與配額耗盡阻塞輪詢）。
 - `03_assemble_report.py`: 組裝 Markdown 報告、自動清理殘留主觀解讀詞、頂部內嵌 50% 封面 Base64 圖片，並動態搜尋 Obsidian 目錄自動備份。
-- `04_qc_check.py`: 自動進行 Ground Truth 1 對 1 章節覆蓋度 Hard-Fail 驗證。
+- `04_qc_check.py`: 自動進行 Ground Truth 1 對 1 章節覆蓋度 Hard-Fail 驗證（可帶 `--auto-backfill` 觸發補課）。
+- `05_backfill.py`: 獨立針對 QC 比對缺漏的章節進行補充查詢與自動重新組裝 (上限 3 次)。
 
 > **註**：執行腳本時建議定位至技能目錄或透過絕對路徑呼叫 Python 腳本（如 `python <SKILL_DIR>/scripts/01_init_notebook.py`）。
 
