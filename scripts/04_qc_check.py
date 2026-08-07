@@ -137,6 +137,7 @@ def qc_check():
     parser = argparse.ArgumentParser(description="QC check for assembled book report.")
     parser.add_argument("--title", help="Book title")
     parser.add_argument("--auto-backfill", action="store_true", help="Auto trigger 05_backfill.py if missing chapters found.")
+    parser.add_argument("--clean-temp", action="store_true", help="Automatically clean temporary files in raw_outputs and final after QC pass.")
     args = parser.parse_args()
 
     config_path = os.path.join(BASE_DIR, "config", "book_config.yaml")
@@ -187,9 +188,55 @@ def qc_check():
     print("\n==========================================")
     if passed_all and not missing_chapters:
         print("🎉 QC RESULT: ALL CHECKS PASSED PERFECTLY!")
+        print("==========================================")
+
+        # 暫存檔清理邏輯
+        def cleanup_temp_files():
+            import shutil
+            cleaned_any = False
+            
+            # 清理 raw_outputs
+            target_raw = os.path.join(BASE_DIR, "raw_outputs", book_title) if book_title else os.path.join(BASE_DIR, "raw_outputs")
+            if os.path.exists(target_raw):
+                try:
+                    if os.path.isdir(target_raw):
+                        shutil.rmtree(target_raw)
+                    cleaned_any = True
+                    print(f"🧹 已成功清理 raw_outputs 暫存目錄: {target_raw}")
+                except Exception as e:
+                    print(f"Notice: Failed to clean raw_outputs: {e}")
+
+            # 清理 final 中除了目標 .md 以外的中間檔
+            target_final = os.path.join(BASE_DIR, "final", book_title) if book_title else os.path.join(BASE_DIR, "final")
+            if os.path.exists(target_final) and os.path.isdir(target_final):
+                try:
+                    for fname in os.listdir(target_final):
+                        if not fname.endswith(".md"):
+                            fpath = os.path.join(target_final, fname)
+                            if os.path.isfile(fpath):
+                                os.remove(fpath)
+                            elif os.path.isdir(fpath):
+                                shutil.rmtree(fpath)
+                            cleaned_any = True
+                    print(f"🧹 已成功清理 final 中的中間暫存圖片與非 md 檔案")
+                except Exception as e:
+                    print(f"Notice: Failed to clean final intermediate files: {e}")
+
+            if cleaned_any:
+                print("✨ 暫存檔清理完畢！")
+
+        if args.clean_temp:
+            cleanup_temp_files()
+        else:
+            try:
+                ans = input("\n❓ 報告已確認無誤且通過 QC，是否清理 raw_outputs 與 final 資料夾內的暫存檔？(y/N): ").strip().lower()
+                if ans == 'y':
+                    cleanup_temp_files()
+            except (EOFError, KeyboardInterrupt):
+                pass
     else:
         print("⚠️ QC RESULT: COMPLETED WITH WARNINGS/ISSUES.")
-    print("==========================================")
+        print("==========================================")
 
 if __name__ == "__main__":
     qc_check()
