@@ -203,6 +203,12 @@ def init_notebook():
             sys.exit(1)
 
     config_path = os.path.join(BASE_DIR, "config", "book_config.yaml")
+    template_path = os.path.join(BASE_DIR, "config", "book_config.yaml.template")
+    if not os.path.exists(config_path) and os.path.exists(template_path):
+        import shutil
+        shutil.copy2(template_path, config_path)
+        print(f"Notice: Created initial {config_path} from template.")
+
     config = {}
     if os.path.exists(config_path):
         with open(config_path, "r", encoding="utf-8") as f:
