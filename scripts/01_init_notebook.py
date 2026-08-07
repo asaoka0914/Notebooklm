@@ -79,24 +79,50 @@ def extract_epub_toc(book_path):
     return []
 
 def discover_actual_toc(notebook_id):
-    """Query NotebookLM with a fresh isolated UUID to discover real chapter list."""
+    """Query NotebookLM with a fresh isolated UUID to discover real chapter list, requesting strict JSON output."""
     import uuid
     from notebooklm_tools.services.auth import AuthManager
     from notebooklm_tools.core.client import NotebookLMClient
-    
+
     auth = AuthManager()
     profile = auth.load_profile()
     client = NotebookLMClient(cookies=profile.cookies, csrf_token=profile.csrf_token, session_id=profile.session_id)
     fresh_conv_id = str(uuid.uuid4())
     prompt = (
-        "請僅依據來源書籍本身的實際內容（不要包含附錄、注釋、參考書目等非正文部分），"
-        "列出這本書「正文」的完整章節目錄清單，格式為：\n"
-        "第X章：章節標題\n"
-        "請勿自行推測或延伸不存在的章節，如果全書只到第 N 章，請明確只列出 N 個項目，"
-        "並在最後一行註明：「總章節數：N」。"
+        "請僅依據來源書籍本身的實際內容（不要包含附錄、注釋、參考書目、推薦序等非正文部分），"
+        "列出這本書「正文」的完整章節目錄清單。\n"
+        "請「只」輸出一個合法 JSON 陣列，不要有任何前言、說明文字、Markdown code fence 或其他內容，"
+        "格式範例：[\"第1章 xxx\", \"第2章 xxx\", \"Part 1: xxx\"]\n"
+        "請保留書中原本的章節命名方式（可能是「第X章」「Chapter X」「Part X」「Unit X」或純標題），"
+        "不要自行套用固定格式硬改章節名稱。"
+        "請勿自行推測或延伸不存在的章節，如果全書只到第 N 章，請明確只列出 N 個項目。"
     )
     res = client.query(notebook_id, prompt, conversation_id=fresh_conv_id)
     return res.get("answer", "") if res else ""
+
+def _parse_toc_response(raw_gt):
+    """優先嘗試解析 JSON 陣列，失敗則退回關鍵字逐行過濾（保留原本的相容性）。"""
+    import json, re
+
+    # 1. 嘗試直接解析（可能夾雜 code fence，先剝除）
+    cleaned = raw_gt.strip()
+    cleaned = re.sub(r'^```(?:json)?\s*', '', cleaned)
+    cleaned = re.sub(r'\s*```$', '', cleaned)
+    try:
+        parsed = json.loads(cleaned)
+        if isinstance(parsed, list) and all(isinstance(x, str) for x in parsed):
+            return [x.strip() for x in parsed if x.strip()]
+    except Exception:
+        pass
+
+    # 2. JSON 解析失敗，退回原本的關鍵字過濾（相容非章/Chapter/法則以外的情況也擴充關鍵字）
+    chapters = []
+    keywords = ("章", "Chapter", "chapter", "法則", "Part", "PART", "Unit", "Lesson")
+    for line in raw_gt.split('\n'):
+        line_str = line.strip()
+        if line_str and any(kw in line_str for kw in keywords):
+            chapters.append(line_str)
+    return chapters
 
 from _auth_utils import ensure_auth
 
@@ -158,10 +184,7 @@ def init_notebook():
     if not gt_chapters:
         raw_gt = discover_actual_toc(notebook_id)
         if raw_gt:
-            for line in raw_gt.split('\n'):
-                line_str = line.strip()
-                if line_str and ("章" in line_str or "Chapter" in line_str or "法則" in line_str):
-                    gt_chapters.append(line_str)
+            gt_chapters = _parse_toc_response(raw_gt)
 
     if gt_chapters:
         gt_json_path = os.path.join(BASE_DIR, "config", "ground_truth_toc.json")
