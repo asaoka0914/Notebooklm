@@ -190,13 +190,18 @@ def qc_check():
         print("🎉 QC RESULT: ALL CHECKS PASSED PERFECTLY!")
         print("==========================================")
 
-        # 暫存檔清理邏輯
+        # 暫存檔清理邏輯（帶有強制安全防護與顯式路徑提示）
         def cleanup_temp_files():
+            if not book_title or not book_title.strip():
+                print("⚠️ [安全保護] 未指定具體書籍名稱 (book_title)，為防止誤刪其他書籍資料，已強制中止暫存檔清理！")
+                return
+
             import shutil
             cleaned_any = False
+            clean_title = book_title.strip()
             
-            # 清理 raw_outputs
-            target_raw = os.path.join(BASE_DIR, "raw_outputs", book_title) if book_title else os.path.join(BASE_DIR, "raw_outputs")
+            # 強制指定具體書籍子目錄，絕不退回根目錄
+            target_raw = os.path.join(BASE_DIR, "raw_outputs", clean_title)
             if os.path.exists(target_raw):
                 try:
                     if os.path.isdir(target_raw):
@@ -206,8 +211,8 @@ def qc_check():
                 except Exception as e:
                     print(f"Notice: Failed to clean raw_outputs: {e}")
 
-            # 清理 final 中除了目標 .md 以外的中間檔
-            target_final = os.path.join(BASE_DIR, "final", book_title) if book_title else os.path.join(BASE_DIR, "final")
+            # 清理 final 子目錄中除了目標 .md 以外的中間檔
+            target_final = os.path.join(BASE_DIR, "final", clean_title)
             if os.path.exists(target_final) and os.path.isdir(target_final):
                 try:
                     for fname in os.listdir(target_final):
@@ -218,18 +223,25 @@ def qc_check():
                             elif os.path.isdir(fpath):
                                 shutil.rmtree(fpath)
                             cleaned_any = True
-                    print(f"🧹 已成功清理 final 中的中間暫存圖片與非 md 檔案")
+                    print(f"🧹 已成功清理 final/{clean_title} 中的中間暫存圖片與非 md 檔案")
                 except Exception as e:
                     print(f"Notice: Failed to clean final intermediate files: {e}")
 
             if cleaned_any:
                 print("✨ 暫存檔清理完畢！")
 
+        clean_title = book_title.strip() if book_title else ""
+        target_raw_display = os.path.join(BASE_DIR, "raw_outputs", clean_title) if clean_title else "[未指定書籍]"
+        target_final_display = os.path.join(BASE_DIR, "final", clean_title) if clean_title else "[未指定書籍]"
+
         if args.clean_temp:
             cleanup_temp_files()
         else:
             try:
-                ans = input("\n❓ 報告已確認無誤且通過 QC，是否清理 raw_outputs 與 final 資料夾內的暫存檔？(y/N): ").strip().lower()
+                print("\n❓ 報告已確認無誤且通過 QC，是否清理當前書籍的暫存檔？")
+                print(f"   ► 欲清理 raw_outputs 目錄: {target_raw_display}")
+                print(f"   ► 欲清理 final 中間圖片/非md檔: {target_final_display}")
+                ans = input("確認清理 (y/N): ").strip().lower()
                 if ans == 'y':
                     cleanup_temp_files()
             except (EOFError, KeyboardInterrupt):
