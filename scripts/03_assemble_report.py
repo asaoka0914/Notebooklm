@@ -144,9 +144,8 @@ def assemble_report():
 
     book_title = args.title or config.get("book_title", "讀書報告")
     
-    # 支援子資料夾 (raw_outputs/<book_title>) 與根目錄雙相容
-    raw_dir = os.path.join(BASE_DIR, "raw_outputs", book_title) if os.path.exists(os.path.join(BASE_DIR, "raw_outputs", book_title)) else os.path.join(BASE_DIR, "raw_outputs")
-    final_dir = os.path.join(BASE_DIR, "final", book_title) if args.title else os.path.join(BASE_DIR, "final")
+    raw_dir = os.path.join(BASE_DIR, "raw_outputs", book_title) if (book_title and os.path.exists(os.path.join(BASE_DIR, "raw_outputs", book_title))) else os.path.join(BASE_DIR, "raw_outputs")
+    final_dir = os.path.join(BASE_DIR, "final", book_title) if (book_title and book_title != "讀書報告") else os.path.join(BASE_DIR, "final")
     os.makedirs(final_dir, exist_ok=True)
 
     batch_files = sorted([f for f in os.listdir(raw_dir) if f.startswith("batch_") and f.endswith(".json")])
