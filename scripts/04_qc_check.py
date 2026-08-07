@@ -6,39 +6,16 @@ import argparse
 import yaml
 
 sys.stdout.reconfigure(encoding='utf-8')
-
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
-def qc_check():
-    parser = argparse.ArgumentParser(description="QC check for assembled book report.")
-    parser.add_argument("--title", help="Book title")
-    args = parser.parse_args()
+MAX_RETRY_BATCH = 3
 
-    config_path = os.path.join(BASE_DIR, "config", "book_config.yaml")
-    config = {}
-    if os.path.exists(config_path):
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f) or {}
-
-    book_title = args.title or config.get("book_title", "")
-    if args.title and os.path.exists(os.path.join(BASE_DIR, "final", book_title, f"{book_title}.md")):
-        report_path = os.path.join(BASE_DIR, "final", book_title, f"{book_title}.md")
-    elif args.title and os.path.exists(os.path.join(BASE_DIR, "final", book_title, "full_report.md")):
-        report_path = os.path.join(BASE_DIR, "final", book_title, "full_report.md")
-    elif os.path.exists(os.path.join(BASE_DIR, "final", "full_report.md")):
-        report_path = os.path.join(BASE_DIR, "final", "full_report.md")
-    else:
-        report_path = os.path.join(BASE_DIR, "final", book_title, f"{book_title}.md")
-
+def run_single_qc_pass(report_path):
+    """執行單次 QC 比對檢查，回傳 (passed_all, missing_chapters)"""
     failed_path = os.path.join(BASE_DIR, "failed_batches.json")
-
-    print("==========================================")
-    print("      Starting Automated QC Check         ")
-    print("==========================================")
-
     if not os.path.exists(report_path):
         print(f"❌ [FAIL] Final report not found at {report_path}")
-        sys.exit(1)
+        return False, []
 
     with open(report_path, "r", encoding="utf-8") as f:
         content = f.read()
@@ -59,7 +36,6 @@ def qc_check():
         print("✅ [PASS] No failed batches recorded (100% generation success).")
 
     # 2. 標題與章節密度檢查
-    # 拆分內文與參考文獻
     main_body = content.split("## 📚 參考文獻")[0]
     chapters = re.split(r'\n(?=##\s+)', main_body)
     chap_blocks = [c for c in chapters[1:] if c.strip()]
@@ -76,7 +52,6 @@ def qc_check():
         found_chapter_titles.append(h2_title)
         chap_len = len(chap)
 
-        # 檢查結構元素
         has_concept = "📌 核心概念" in chap or "核心概念" in chap
         has_details = "💡 重點擷取" in chap or "重點擷取" in chap
 
@@ -99,7 +74,6 @@ def qc_check():
             gt_chapters = gt_data.get("chapters", [])
 
             for gt_chap in gt_chapters:
-                # 模糊匹配章節名稱
                 matched = any(gt_chap in fc or fc in gt_chap for fc in found_chapter_titles)
                 if not matched:
                     missing_chapters.append(gt_chap)
@@ -116,8 +90,6 @@ def qc_check():
 
     # 3. 腳註一致性檢查 (雙向)
     print("\n--- 2. Citation Consistency Check ---")
-    
-    # 尋找內文中的所有引號數字 [1], [2], [1-3], [4, 5]
     text_body = content.split("## 📚 參考文獻與原文引用腳註")[0] if "## 📚 參考文獻與原文引用腳註" in content else content
     ref_body = content.split("## 📚 參考文獻與原文引用腳註")[1] if "## 📚 參考文獻與原文引用腳註" in content else ""
 
@@ -137,7 +109,6 @@ def qc_check():
                 except ValueError:
                     pass
 
-    # 尋找 References 區塊中的所有 [N] 標記
     ref_citations = set()
     ref_matches = re.findall(r'^\[(\d+)\]\s*"', ref_body, re.MULTILINE)
     for rm in ref_matches:
@@ -160,21 +131,61 @@ def qc_check():
     else:
         print("✅ [PASS] No orphan citations in References.")
 
-    # 4. 判斷是否進行自動補課
+    return passed_all, missing_chapters
+
+def qc_check():
+    parser = argparse.ArgumentParser(description="QC check for assembled book report.")
+    parser.add_argument("--title", help="Book title")
     parser.add_argument("--auto-backfill", action="store_true", help="Auto trigger 05_backfill.py if missing chapters found.")
     args = parser.parse_args()
 
+    config_path = os.path.join(BASE_DIR, "config", "book_config.yaml")
+    config = {}
+    if os.path.exists(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+
+    book_title = args.title or config.get("book_title", "")
+    if args.title and os.path.exists(os.path.join(BASE_DIR, "final", book_title, f"{book_title}.md")):
+        report_path = os.path.join(BASE_DIR, "final", book_title, f"{book_title}.md")
+    elif args.title and os.path.exists(os.path.join(BASE_DIR, "final", book_title, "full_report.md")):
+        report_path = os.path.join(BASE_DIR, "final", book_title, "full_report.md")
+    elif os.path.exists(os.path.join(BASE_DIR, "final", "full_report.md")):
+        report_path = os.path.join(BASE_DIR, "final", "full_report.md")
+    else:
+        report_path = os.path.join(BASE_DIR, "final", book_title, f"{book_title}.md")
+
+    print("==========================================")
+    print("      Starting Automated QC Check         ")
+    print("==========================================")
+
+    # 執行首次單次 QC
+    passed_all, missing_chapters = run_single_qc_pass(report_path)
+
+    # 若開啟 --auto-backfill 且有缺漏，進入閉環自動補課與 re-check 迴圈 (MAX_RETRY_BATCH = 3)
     if missing_chapters and args.auto_backfill:
-        print("\n🚀 [Auto-Backfill] 偵測到缺漏章節且開啟 --auto-backfill，自動啟動 05_backfill.py...")
         import importlib.util
         bf_path = os.path.join(BASE_DIR, "scripts", "05_backfill.py")
-        spec = importlib.util.spec_from_file_location("backfill_mod", bf_path)
-        bf_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(bf_mod)
-        bf_mod.run_backfill(missing_chapters)
+        
+        for retry in range(1, MAX_RETRY_BATCH + 1):
+            print(f"\n🔄 [Auto-Backfill Retry {retry}/{MAX_RETRY_BATCH}] 發現缺漏章節，觸發自動補課流程...")
+            spec = importlib.util.spec_from_file_location("backfill_mod", bf_path)
+            bf_mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(bf_mod)
+            
+            # 執行補課並會自動觸發 03_assemble_report 重新組裝
+            bf_mod.run_backfill(missing_chapters)
+
+            # 補完重組後，重新執行單次 QC 驗證！
+            print(f"\n🔍 [Re-QC Check Pass {retry}] 補課與重組完成，重新驗證報告涵蓋度...")
+            passed_all, missing_chapters = run_single_qc_pass(report_path)
+
+            if passed_all and not missing_chapters:
+                print(f"🎉 [Auto-Backfill Success] 於第 {retry} 次補課後，全書章節 100% 涵蓋且 QC 完全通過！")
+                break
 
     print("\n==========================================")
-    if passed_all:
+    if passed_all and not missing_chapters:
         print("🎉 QC RESULT: ALL CHECKS PASSED PERFECTLY!")
     else:
         print("⚠️ QC RESULT: COMPLETED WITH WARNINGS/ISSUES.")
