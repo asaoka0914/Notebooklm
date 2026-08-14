@@ -10,3 +10,8 @@
   - **文件與遠端同步**：更新 `README.md` 安裝指南與 Changelog，所有修改通過單元測試並已全部推送至 GitHub `https://github.com/asaoka0914/Notebooklm`。
 - **下一次開工建議**: 
   - 換到其他電腦時，只需在專案目錄執行 `powershell -ExecutionPolicy Bypass -File install.ps1` 即可瞬間完成設定並直接調用 `book-reader` 進行書籍導讀報告生成。
+
+- **上線後非阻擋追蹤項 (Pending Follow-up & Edge-case Verification)**:
+  1. **舊程式隔離狀態檢查**：舊版（v4 以前）之根目錄舊腳本與歷史計劃已全數移入 `old data/`（且已加入 `.gitignore` 排除）。事後有空可評估是否將 `old data/` 完整打包備份或清空刪除，徹底杜絕混淆。
+  2. **EPUB `toc.xhtml` 實體書籍端到端實測**：Fix D 的 fallback 路徑目前已通過單元測試 (`test_epub_toc_and_assemble.py`) 與代碼靜態審查。建議下次實務操作時，挑選一本採用 `toc.xhtml` 命名（而非 `.ncx`/`nav.xhtml`）的 EPUB 實體書籍進行完整端到端實測，確認動態提取與管線無縫銜接。
+
