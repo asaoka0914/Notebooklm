@@ -95,7 +95,15 @@ def clean_forbidden_phrases(text):
     return text
 
 def find_obsidian_raw_dir():
-    """動態搜尋 Obsidian BoBo-wiki raw 目錄。"""
+    """動態搜尋 Obsidian raw 目錄（支援 cross-platform & 多電腦配置）"""
+    try:
+        from env_config import get_obsidian_raw_dir
+        raw_path = get_obsidian_raw_dir()
+        if raw_path and os.path.isdir(str(raw_path)):
+            return str(raw_path)
+    except Exception:
+        pass
+
     candidates = []
     home = os.path.expanduser('~')
 
@@ -106,28 +114,16 @@ def find_obsidian_raw_dir():
         os.path.join(home, 'OneDrive', 'Obsidian', 'BoBo-wiki', 'raw'),
         os.path.join(home, 'Desktop', '我的雲端硬碟', 'Obsidian', 'BoBo-wiki', 'raw'),
         os.path.join(home, 'Obsidian', 'BoBo-wiki', 'raw'),
+        r'G:\我的雲端硬碟\Obsidian\raw',
     ]
 
     for p in search_paths:
         if os.path.isdir(p):
             candidates.append(p)
 
-    desktop = os.path.join(home, 'Desktop')
-    if os.path.isdir(desktop):
-        for entry in os.listdir(desktop):
-            candidate = os.path.join(desktop, entry, 'Obsidian', 'BoBo-wiki', 'raw')
-            if os.path.isdir(candidate):
-                if candidate not in candidates:
-                    candidates.append(candidate)
-
     if not candidates:
         print("⚠️  警告：未找到 Obsidian BoBo-wiki/raw 目錄，報告僅儲存於技能 final/ 目錄")
         return None
-
-    for cand in candidates:
-        md_files = [f for f in os.listdir(cand) if f.endswith('_讀書報告.md') or f.endswith('.md')]
-        if md_files:
-            return cand
 
     return candidates[0]
 

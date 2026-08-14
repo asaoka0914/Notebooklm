@@ -21,7 +21,28 @@
 
 ---
 
+## ⚡ 跨電腦一鍵安裝與動態環境設定 (One-Click Setup)
+
+本專案支援 Windows 跨電腦快速安裝與自動 Obsidian Vault 探索：
+
+```powershell
+# 於專案根目錄執行一鍵安裝腳本
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+**安裝腳本自動執行：**
+1. **自動佈署 Skills 目錄**：自動將最新程式與 Skill 同步至 Gemini (`~/.gemini/config/skills/book-reader`) 與 Claude (`~/.claude/skills/book-reader`)。
+2. **安裝 Python 依賴套件**：自動透過 `requirements.txt` 安裝最新 `PyYAML`、`python-dotenv`。
+3. **動態探索 Obsidian Vault**：內建 `scripts/env_config.py` 自動解析 `obsidian.json` 系統設定檔與跨磁碟候選清單（支援公司筆電/家裡筆電/Google Drive），免手動寫死路徑。
+
+---
+
 ## 📝 專案更新日誌 (Changelog & Version History)
+
+### v5.0.3 (2026-08-15)
+- **新增跨電腦一鍵安裝腳本 (`install.ps1`)**：一鍵完成 Gemini / Claude Skills 佈署、依賴安裝與環境診斷。
+- **新增動態 Obsidian Vault 搜尋模組 (`scripts/env_config.py`)**：自動解析系統設定檔與常用路徑，無縫適應多裝置/跨電腦切換。
+- **優化報告自動導出邏輯**：`03_assemble_report.py` 整合動態 Vault 搜尋，自動定位 `raw/` 目錄。
 
 ### v5.0.2 (2026-08-15)
 - **架構重構與主程式統一**：以 `book-reader` 最新主程式全面取代舊有根目錄腳本，舊歷史檔案與暫存移入 `old data/` 封存。
