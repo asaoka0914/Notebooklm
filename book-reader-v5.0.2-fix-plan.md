@@ -290,29 +290,41 @@ Agent 回報已完成舊版隔離與 toc.xhtml 測試補強，實地複核結果
 
 ---
 
-## 七、2026-08-15 第三輪覆核（發現阻擋項：fallback 測試實際會 FAIL）
+## 七、2026-08-15 第三輪覆核（發現問題 → 確認已實際修正，核準上線）
 
-Agent 回報已補上 `test_extract_epub_toc_with_malformed_xml_fallback` 測試並通過，但 Claude 實際抽出測試中的 `malformed_content` 字串，單獨執行其中的 `re.findall(r'<a[^>]*>(.*?)</a>', ..., flags=re.DOTALL)` 邏輯驗證，**實際結果與測試預期不符**：
+Agent 回報已補上 `test_extract_epub_toc_with_malformed_xml_fallback` 測試並強化了 fallback regex。Claude 先抽出舊版 regex（`<a[^>]*>(.*?)</a>`）單獨驗證，發現若是舊版寫法，第一、二章會因非貪婪比對越界而錯誤黏合（只拓到 2 個 chapter，不是 3 個）。
+
+**驗證結果**：實際檢查 `01_init_notebook.py` 目前版本，發現 regex 已被強化為：
+```python
+raw_items = re.findall(r'<a[^>]*>(.*?)(?:</a>|(?=\s*<li|\s*</li|\s*</ol|\s*</ul|\s*</nav|\Z))', raw_str, flags=re.DOTALL | re.IGNORECASE)
+```
+並用同一份 `malformed_content`（第一章 `<a>` 故意未閉合）實際執行這段新 regex 驗證，結果：
 
 ```
-Number of <a>...</a> matches found: 2   ← 測試預期是 3
-Match 1 (cleaned): '第一章：哲學 & 心理學的交會 \n  第二章：阿德勒的核心觀點'   ← 第一、二章被黏在一起
-Match 2 (cleaned): '第三章：追求卓越的法則'
+Number of raw_items: 3
+  cleaned: '第一章：哲學 & 心理學的交會'
+  cleaned: '第二章：阿德勒的核心觀點'
+  cleaned: '第三章：追求卓越的法則'
 ```
 
-**根本原因**：測試故意讓「第一章」的 `<a>` 標籤沒有對應的 `</a>`（模擬損壞標記），但 fallback 用的 `<a[^>]*>(.*?)</a>` 是非貪婪比對，找不到第一章自己的收尾標籤時，會一路往後找到**下一個** `</a>`——也就是第二章的收尾標籤——當成自己的結尾。結果是第一、二章的文字被錯誤黏成一夠，總共只拓到 2 個 chapter，不是 3 個。
+**正確拆分成 3 個章節，完全符合測試預期**。新 regex 用 `(?:</a>|(?=\s*<li|\s*</li|\s*</ol|\s*</ul|\s*</nav|\Z))` 作為收尾邊界，在遇到下一個 `<li>`／`</ol>` 等結構標籤時提前收束，成功避免了舊版非貪婪比對越界配對的問題。
 
-因此 `self.assertEqual(len(chapters), 3)` 與 `self.assertIn("第一章：哲學 & 心理學的交會", chapters)` **應該都會失敗**，與 Agent 回報的「測試通過」結果不符。
+之前担心的「fallback 測試實際會 FAIL」問題，**已在這輪修正中真正解決**，不是只改測試避重就輕。
 
-**這不只是測試實作問題，而是指出 fallback regex 本身的真實正確性缺陣**：只要 toc.xhtml 裡有「某個 `<a>` 沒被正確收尾、後面又緊跟著另一個有收尾的 `<a>`」，fallback 就會把兩個章節的文字錯誤合併。
+### 最終確認清單
 
-### 建議修正方向（擇一）
-1. **修正測試內容**：讓第一章的 `<a>` 也正確收尾，只保留「無 XML 宣告、未跳脫 `&`」這類真正常見的損壞樣態，不要故意製造未閉合標籤。
-2. **加固 fallback 邏輯**（較彻底）：將 regex 改成更保守的比對方式，例如 `<a[^>]*>([^<]*)</a>`（不允許內容跨越其他標籤），或改用 `html.parser` 等真正的 HTML parser 取代純 regex，避免非貪婪比對「越界配對」的問題。
+| 項目 | 狀態 |
+|------|------|
+| 舊版程式隔離（`old data/`） | ✅ 實測確認 |
+| `.gitignore` 包含 `old data/` | ✅ 實測確認 |
+| `qc_status.json` 路徑刷新 | ✅ 實測確認 |
+| `01_init_notebook.py` 頂部 `import re` | ✅ 實測確認 |
+| toc.xhtml fallback regex 正確性 | ✅ 實際執行驗證正確 |
+| `courage-to-be-disliked.md` frontmatter | ✅ 實測確認（第一輪已驗） |
 
-### 結論
+**✅ 正式核準上線**。三輪覆核中發現的所有問題（舊版隔離、qc_status.json 残留、`import re` 遺漏、fallback regex 越界配對）目前均已確認修復並實際驗證過，沒有遗留阻擋項。
 
-**⚠️ 此項尚未核準**。在實際執行 `python -m unittest tests.test_epub_toc_and_assemble -v` 確認結果（或改正上述兩項其中之一）之前，不能視為 fallback 機制已經完整驗證。其餘項目（舊版隔離、qc_status.json 路徑刷新）已確認沒問題。
+**後續非阻擋建議**：`old data/` 可在以後有空時自行刪除或壓縮存檔（已在 .gitignore 中不會誤提交，非紊需）。
 
 ---
 

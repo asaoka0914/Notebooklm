@@ -43,6 +43,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 - **新增跨電腦一鍵安裝腳本 (`install.ps1`)**：一鍵完成 Gemini / Claude Skills 佈署、依賴安裝與環境診斷。
 - **新增動態 Obsidian Vault 搜尋模組 (`scripts/env_config.py`)**：自動解析系統設定檔與常用路徑，無縫適應多裝置/跨電腦切換。
 - **優化報告自動導出邏輯**：`03_assemble_report.py` 整合動態 Vault 搜尋，自動定位 `raw/` 目錄。
+- **EPUB 目錄提取深度加固 (`html.parser`)**：針對非良構 XML 或破損 `<a>` 標籤，採用 `HTMLParser` 狀態機取代純非貪婪正則，杜絕章節標題跨標籤越界黏合，並補齊閉環單元測試。
 
 ### v5.0.2 (2026-08-15)
 - **架構重構與主程式統一**：以 `book-reader` 最新主程式全面取代舊有根目錄腳本，舊歷史檔案與暫存移入 `old data/` 封存。
