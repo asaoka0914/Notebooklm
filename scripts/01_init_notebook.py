@@ -77,14 +77,52 @@ def extract_epub_toc(book_path):
                             if text not in chapters:
                                 chapters.append(text)
                 except Exception as inner_e:
-                    # XML parsing fallback: 正則匹配 <a> 標籤內容 (針對非格式良好之 HTML/XHTML)
+                    # XML parsing fallback: 優先採用 Python 內建 html.parser 解析殘破 HTML，其次退回 Lookahead 正則
                     try:
                         raw_str = content.decode('utf-8', errors='ignore')
-                        # 擷取 <a ...> 與其後續文本內容 (直到 </a> 或 <li 或 <ol 或 </ol 等下個結構)
-                        raw_items = re.findall(r'<a[^>]*>(.*?)(?:</a>|(?=\s*<li|\s*</li|\s*</ol|\s*</ul|\s*</nav|\Z))', raw_str, flags=re.DOTALL | re.IGNORECASE)
-                        for m in raw_items:
+                        from html.parser import HTMLParser
+                        class TOCHTMLParser(HTMLParser):
+                            def __init__(self):
+                                super().__init__()
+                                self.in_a = False
+                                self.current_text = []
+                                self.extracted = []
+                            def handle_starttag(self, tag, attrs):
+                                if tag.lower() == 'a':
+                                    self.in_a = True
+                                    self.current_text = []
+                                elif tag.lower() in ('li', 'ol', 'ul', 'nav', 'p', 'div', 'tr') and self.in_a:
+                                    # 遇到容器標籤但 <a> 未閉合，自動截斷前一個 <a>
+                                    txt = "".join(self.current_text).strip()
+                                    if txt:
+                                        self.extracted.append(txt)
+                                    self.in_a = False
+                                    self.current_text = []
+                            def handle_endtag(self, tag):
+                                if tag.lower() == 'a' and self.in_a:
+                                    txt = "".join(self.current_text).strip()
+                                    if txt:
+                                        self.extracted.append(txt)
+                                    self.in_a = False
+                                    self.current_text = []
+                            def handle_data(self, data):
+                                if self.in_a:
+                                    self.current_text.append(data)
+
+                        parser = TOCHTMLParser()
+                        parser.feed(raw_str)
+                        if parser.in_a:
+                            txt = "".join(parser.current_text).strip()
+                            if txt:
+                                parser.extracted.append(txt)
+
+                        candidates = parser.extracted
+                        if not candidates:
+                            # 備用正則：限制在標籤邊界內不跨越下個 <li>/<nav>/<ol>
+                            candidates = re.findall(r'<a[^>]*>(.*?)(?:</a>|(?=\s*<li|\s*</li|\s*</ol|\s*</ul|\s*</nav|\Z))', raw_str, flags=re.DOTALL | re.IGNORECASE)
+
+                        for m in candidates:
                             clean_m = re.sub(r'<[^>]+>', '', m).strip()
-                            # 清理多餘換行
                             clean_m = re.sub(r'\s+', ' ', clean_m)
                             if clean_m and ("章" in clean_m or "Chapter" in clean_m or "法則" in clean_m or "夜" in clean_m or clean_m in ("前言", "序言", "結語", "後記", "緒論")):
                                 if clean_m not in chapters:
