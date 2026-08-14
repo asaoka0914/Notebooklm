@@ -73,8 +73,12 @@ def run_single_qc_pass(report_path):
             total_gt = gt_data.get("total_chapters", 0)
             gt_chapters = gt_data.get("chapters", [])
 
+            def _normalize(s):
+                return re.sub(r'[\s:：""''""\'\'\.,;!?、《》【】「」()\(\)]', '', s)
+
             for gt_chap in gt_chapters:
-                matched = any(gt_chap in fc or fc in gt_chap for fc in found_chapter_titles)
+                norm_gt = _normalize(gt_chap)
+                matched = any(norm_gt == _normalize(fc) or norm_gt in _normalize(fc) or _normalize(fc) in norm_gt for fc in found_chapter_titles)
                 if not matched:
                     missing_chapters.append(gt_chap)
 
@@ -186,6 +190,17 @@ def qc_check():
                 break
 
     print("\n==========================================")
+    qc_status_path = os.path.join(BASE_DIR, "qc_status.json")
+    try:
+        with open(qc_status_path, "w", encoding="utf-8") as qf:
+            json.dump({
+                "passed_all": bool(passed_all and not missing_chapters),
+                "book_title": book_title,
+                "report_path": report_path
+            }, qf, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"Warning: Failed to write qc_status.json: {e}")
+
     if passed_all and not missing_chapters:
         print("🎉 QC RESULT: ALL CHECKS PASSED PERFECTLY!")
         print("==========================================")

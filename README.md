@@ -23,6 +23,19 @@
 
 ## 📝 專案更新日誌 (Changelog & Version History)
 
+### v5.0.2 (2026-08-15)
+- **架構重構與主程式統一**：以 `book-reader` 最新主程式全面取代舊有根目錄腳本，舊歷史檔案與暫存移入 `old data/` 封存。
+- **嚴格 QC 前置守門 (QC Guard)**：`06_generate_book_summary.py` 加入三道防線（`qc_status.json` 存在性、書名一致性與 `passed_all == True` 硬性檢查），未通過前禁止生成摘要。
+- **EPUB 目錄提取擴充**：`01_init_notebook.py` 擴充支援 `toc.xhtml` 及容錯標籤抽取。
+- **YAML Frontmatter 自動串流注入**：`03_assemble_report.py` 支援將產出報告自動注入 Frontmatter 並相容 Obsidian 知識庫規範。
+- **自動化單元測試覆蓋**：新增針對 QC Guard、EPUB TOC 與 Frontmatter 注入之 `unittest` 測試套件。
+
+### v5.0.1 (2026-08-14)
+- **修復 03/05 自動補課組裝崩潰 Bug**：拆分 assemble_report_core 消除動態 import 參數污染。
+- **強化 QC 狀態嚴格判定**：04_qc_check 產出 qc_status.json，06_generate_book_summary 嚴格檢驗。
+- **新增 06 全書 6 模組深度摘要生成腳本**：產出 6 大核心模組。
+- **明定雙檔分流與舊版相容說明**：03 既有複製保留相容，正式產出由階段二 Agent 接手。
+
 ### v1.1.0 (2026-08-02)
 - **新增 EPUB/PDF 地面真相目錄解析 (`extract_epub_toc`)**：
   - 改為由本機檔案直接解析權威目錄，避免向模型詢問未知的長度。

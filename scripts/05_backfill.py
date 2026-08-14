@@ -73,7 +73,7 @@ def run_backfill(missing_chapters, notebook_id=None, book_title=None):
     spec_a = importlib.util.spec_from_file_location("assemble_mod", asm_path)
     asm_mod = importlib.util.module_from_spec(spec_a)
     spec_a.loader.exec_module(asm_mod)
-    asm_mod.assemble_report()
+    asm_mod.assemble_report_core(book_title)
     return True
 
 if __name__ == "__main__":

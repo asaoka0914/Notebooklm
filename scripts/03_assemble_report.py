@@ -26,8 +26,8 @@ def normalize_headings(text):
     
     for line in lines:
         stripped = line.strip()
-        # 1. 識別章節大標題 (如：#### 洞察市場真實面... 或 #### 第 1 章：... 或 #### CHAPTER 1...)
-        if re.match(r'^(?:#{1,6}\s*)?(?:洞察市場真實面|第\s*\d+\s*章|第[一二三四五六七八九十]+\s*章|CHAPTER\s*\d+|前言|總結|附錄)', stripped, re.IGNORECASE):
+        # 1. 識別章節大標題 (如：#### 洞察市場真實面... 或 #### 第 1 章：... 或 #### 第一夜：... 或 #### CHAPTER 1...)
+        if re.match(r'^(?:#{1,6}\s*)?(?:洞察市場真實面|第\s*\d+\s*章|第[一二三四五六七八九十]+\s*章|第\d+\s*夜|第[一二三四五六七八九十]+\s*夜|CHAPTER\s*\d+|前言|總結|附錄)', stripped, re.IGNORECASE):
             clean_title = re.sub(r'^#{1,6}\s*', '', stripped)
             norm_lines.append(f"\n## {clean_title}\n")
         # 2. 識別子結構 (如：##### 1.1 ..., 📌 核心概念, 💡 重點擷取)
@@ -131,18 +131,13 @@ def find_obsidian_raw_dir():
 
     return candidates[0]
 
-def assemble_report():
-    parser = argparse.ArgumentParser(description="Assemble report JSONs into Markdown.")
-    parser.add_argument("--title", help="Book title")
-    args = parser.parse_args()
-
+def assemble_report_core(book_title: str = None):
     config_path = os.path.join(BASE_DIR, "config", "book_config.yaml")
     config = {}
     if os.path.exists(config_path):
         with open(config_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
-
-    book_title = args.title or config.get("book_title", "讀書報告")
+    book_title = book_title or config.get("book_title", "讀書報告")
     
     raw_dir = os.path.join(BASE_DIR, "raw_outputs", book_title) if (book_title and os.path.exists(os.path.join(BASE_DIR, "raw_outputs", book_title))) else os.path.join(BASE_DIR, "raw_outputs")
     final_dir = os.path.join(BASE_DIR, "final", book_title) if (book_title and book_title != "讀書報告") else os.path.join(BASE_DIR, "final")
@@ -244,16 +239,58 @@ def assemble_report():
     print(f"Total Sections Processed: {len(batch_files)}")
     print(f"Total Citations Remapped: {len(references_list)}")
 
-    # 自動複製至 Obsidian
+    # 自動複製至 Obsidian raw/__cleanup_pending__/（歷史相容保留，避免污染 raw 根目錄）
     obsidian_dir = find_obsidian_raw_dir()
     if obsidian_dir:
         short_title = book_title.split('：')[0] if '：' in book_title else book_title
-        obsidian_path = os.path.join(obsidian_dir, f"{short_title}_讀書報告.md")
+        pending_dir = os.path.join(obsidian_dir, '__cleanup_pending__')
+        os.makedirs(pending_dir, exist_ok=True)
+        obsidian_path = os.path.join(pending_dir, f"{short_title}_讀書報告.md")
         import shutil
         shutil.copy2(final_report_path, obsidian_path)
-        print(f"✅ 報告已複製至 Obsidian：{obsidian_path}")
+        print(f"✅ 報告已複製至 Obsidian 待整理區：{obsidian_path}")
     else:
         print("⚠️  未找到 Obsidian 目錄，報告請手動複製至目標路徑")
 
+def prepend_article_frontmatter(source_path, target_path, slug, title, author="", tags=None):
+    """
+    為詳細章節重點精華檔案注入標準 YAML Frontmatter 並輸出至目標路徑（串流寫入，不浪費 Token）。
+    """
+    import datetime
+    today_str = datetime.date.today().isoformat()
+    tags_list = tags if tags else ["讀書報告", "book-report"]
+    tags_yaml = json.dumps(tags_list, ensure_ascii=False)
+
+    frontmatter = f"""---
+slug: {slug}
+type: article
+title: "《{title}》全書詳細章節重點精華"
+author: "{author}"
+tags: {tags_yaml}
+created: "{today_str}"
+updated: "{today_str}"
+sources: ["{title}"]
+summary_ref: "[[wiki/summaries/{slug}-summary|查看重點摘要]]"
+---
+
+"""
+    os.makedirs(os.path.dirname(os.path.abspath(target_path)), exist_ok=True)
+    with open(source_path, "r", encoding="utf-8") as src, open(target_path, "w", encoding="utf-8") as dst:
+        dst.write(frontmatter)
+        # 逐塊串流讀寫避免大檔佔用記憶體
+        while True:
+            chunk = src.read(65536)
+            if not chunk:
+                break
+            dst.write(chunk)
+    print(f"✅ 已成功注入 YAML Frontmatter 並輸出至：{target_path}")
+
+def assemble_report():
+    parser = argparse.ArgumentParser(description="Assemble report JSONs into Markdown.")
+    parser.add_argument("--title", help="Book title")
+    args = parser.parse_args()
+    return assemble_report_core(args.title)
+
 if __name__ == "__main__":
     assemble_report()
+

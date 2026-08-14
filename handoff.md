@@ -1,13 +1,13 @@
 # Handoff (交接紀錄)
 
-- **最後更新時間**: 2026-08-07 17:24
-- **最後操作裝置**: 家裡電腦 (`AsaokaNotebook-9527`)
-- **當前狀態**: 🟢 `book-reader` 技能 Ground Truth TOC v4 純筆記本優化完全完成並測試通過
+- **最後更新時間**: 2026-08-14 22:48
+- **最後操作裝置**: 家裡電腦 (AsaokaNotebook-9527)
+- **當前狀態**: 🟢 book-reader v5.0.2 修正與強化完成（8 項 tests 全部 100% 通過）
 - **目前做到哪**: 
-  - 完成 `book-reader` v4 重構：更新 [01_init_notebook.py](file:///g:/我的雲端硬碟/Project/Notebooklm/scripts/01_init_notebook.py)（包含全域技能目錄 [01_init_notebook.py](file:///c:/Users/AsaokaHTPC/.gemini/config/skills/book-reader/scripts/01_init_notebook.py)）。
-  - 更新 `discover_actual_toc()` 提示詞，要求 NotebookLM 以純 JSON 陣列格式回傳正文目錄，避免非制式命名漏抓與自由文本污染。
-  - 新增 `_parse_toc_response()`，實作 Markdown Code Fence 剝離與 JSON 解析，並保留雙保險退回機制（支援 `Part`, `Unit`, `Lesson`, `章`, `Chapter`, `法則` 等關鍵字）。
-  - 通過測試腳本運算驗證，並已完成 Obsidian CHANGELOG 與 JSON 索引檔寫入。
+  - 完成 `06_generate_book_summary.py` QC Guard 嚴格校驗：強制校驗 `qc_status.json` 存在性、書名匹配與 `passed_all == True`，防止前書籍殘留狀態誤用。
+  - 完成 `01_init_notebook.py` 的 `extract_epub_toc()` 擴充：支援 `toc.xhtml` 及更多命名，並增加 HTML 標籤提取容錯。
+  - 完成 `03_assemble_report.py` 內建 `prepend_article_frontmatter()` 串流注入 YAML Frontmatter 函式，並將 Obsidian 舊相容複製改存至 `raw/__cleanup_pending__/`，避免污染 raw 根目錄。
+  - 完成專案與全域 `SKILL.md` 同步更新。
+  - 新增 `tests/test_qc_guard.py` 與 `tests/test_epub_toc_and_assemble.py`，全套 8 項單元測試 100% 通過。
 - **下一次開工建議**: 
-  - `book-reader` 已兼顧本機 EPUB 解析與無 EPUB 之純筆記本 Ground Truth 自動抽離。
-  - 後續直接使用 `book-reader` 技能處理筆記本時即可享受高精準度的 Ground Truth 目錄檢核機制。
+  - book-reader（長文/書籍管線）已完成所有發現問題之修復與防護強化，可隨時用於任何新書籍擷取與整理。

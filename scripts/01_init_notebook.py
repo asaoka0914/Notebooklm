@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import argparse
 import yaml
 import zipfile
@@ -63,16 +64,30 @@ def extract_epub_toc(book_path):
         return []
     try:
         with zipfile.ZipFile(book_path, 'r') as z:
-            toc_files = [f for f in z.namelist() if f.endswith('.ncx') or 'nav' in f.lower()]
+            toc_files = [f for f in z.namelist() if f.endswith('.ncx') or 'nav' in f.lower() or 'toc' in f.lower()]
             chapters = []
             for tf in toc_files:
-                content = z.read(tf)
-                root = ET.fromstring(content)
-                for elem in root.iter():
-                    text = elem.text.strip() if elem.text else ""
-                    if text and ("章" in text or "Chapter" in text or "法則" in text):
-                        if text not in chapters:
-                            chapters.append(text)
+                try:
+                    content = z.read(tf)
+                    root = ET.fromstring(content)
+                    for elem in root.iter():
+                        # 擷取 element text 或 tail text
+                        text = (elem.text or "").strip()
+                        if text and ("章" in text or "Chapter" in text or "法則" in text or "夜" in text or text in ("前言", "序言", "結語", "後記", "緒論")):
+                            if text not in chapters:
+                                chapters.append(text)
+                except Exception as inner_e:
+                    # XML parsing fallback: 正則匹配 <a> 標籤內容
+                    try:
+                        raw_str = content.decode('utf-8', errors='ignore')
+                        matches = re.findall(r'<a[^>]*>(.*?)</a>', raw_str, flags=re.DOTALL)
+                        for m in matches:
+                            clean_m = re.sub(r'<[^>]+>', '', m).strip()
+                            if clean_m and ("章" in clean_m or "Chapter" in clean_m or "法則" in clean_m or "夜" in clean_m or clean_m in ("前言", "序言", "結語", "後記", "緒論")):
+                                if clean_m not in chapters:
+                                    chapters.append(clean_m)
+                    except Exception:
+                        pass
             return chapters
     except Exception as e:
         print(f"Notice: EPUB TOC parsing error: {e}")

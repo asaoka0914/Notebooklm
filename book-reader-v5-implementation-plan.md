@@ -1,8 +1,3 @@
----
-name: book-reader
-description: 透過已推權的 notebooklm_tools 或 nlm CLI 操作 NotebookLM，讀取指定筆記本並生成完整涵飯所有章節、忠於原文的讀書報告（Briefing Document）與標準 6 模組深度摘要，並瓫本地端 Agent 接棒完成 Obsidian 概念歸檔。當使用者說「幫我整理notebooklm + 筆記名稱」（例如「幫我整理notebooklm AI導論」「幫我整理notebooklm+機器學習筆記」）、或明確提到「book-reader」時，一律言發此技能。
----
-
 ﻿# book-reader v5.0 長文與書籍專用實作計畫 (Book & Long-Form Pipeline)
 
 > **版本**：v5.0.1（審核修正版）  
@@ -71,9 +66,9 @@ flowchart TD
     
     subgraph Stage2[階段二：本地端 Agent 高智慧收尾]
         S2_0[0. 讀取 temp_book_summary.md 即可（約 1,500 字），無需讀入整份詳細報告]
-        S2_1[1. 基於書名生成標準英文 slug 與 YAML Frontmatter 參數]
-        S2_2[2. 呼叫 03_assemble_report.py 的 prepend_article_frontmatter() 或使用檔案流將 Frontmatter 注入並輸出至 raw/articles/zh/slug.md（零 Token 讀取）]
-        S2_3[3. 將 深度摘要 歸檔至 wiki/summaries/slug-summary.md，並根據此時確定的 slug 補上 original_ref 反向連結]
+        S2_1[1. 基於書名生成標準英文 slug 與 YAML Frontmatter]
+        S2_2[2. 以檔案複製/移動方式（非讀入 Context）將 final/書名/書名.md 歸檔至 raw/articles/zh/slug.md]
+        S2_3[3. 將 深度摘要 歸檔至 wiki/summaries/slug-summary.md，並根據此時才確定的 slug 補上 original_ref 反向連結]
         S2_4[4. 檢索 wiki/concepts/, 建立雙向雙括號連結與新概念頁]
         S2_5[5. 手動追加 index.md 與 log.md]
 
@@ -169,10 +164,6 @@ original_ref: [[raw/articles/zh/slug|查看完整章節重點精華]]
    - Agent 僅需讀取 temp_book_summary.md（約 1,500 字）即可精準完成概念關聯與歸檔。
    - **新增（修正）：明確區分「檔案複製/移動」與「讀入 Context」是兩回事**。S2_2 「將詳細重點精華歸檔至 raw/articles/zh/slug.md」一步，指的是在檔案系統層級進行複製/重新命名（例如呼叫 `shutil.copy`/`move` 或對應的檔案工具），**絕對不需要**將十幾萬字的詳細報告全文讀進 Agent 的 Context Window 再輸出一遍。若 Agent 錯手將此步驟誤解為「讀入後重新生成」，將直接違反本計畫節省 Token 的初衷，須在 SKILL.md 中明文禁止。
 
-    - **舊版自動複製路徑相容說明（重要）**：`03_assemble_report.py` 內建自動複製至 `BoBo-wiki/raw/{短書名}_讀書報告.md` 僅作為歷史版本相容保留。**本次升級之正式產出位置一律為階段二 Agent 執行之雙檔分流**：
-      1. 詳細正文精華：`raw/articles/zh/[slug].md`
-      2. 6 模組深度摘要：`wiki/summaries/[slug]-summary.md`
-      Agent 接手歸檔時請務必遵循上述雙檔路徑，勿將歷史路徑誤認為正式目標。
 ---
 
 ## 📊 預期效益與驗證標準

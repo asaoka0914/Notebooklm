@@ -34,7 +34,21 @@ config/book_config.yaml
 config/book_toc.json
 notebooklm_pipeline_spec_v2.md
 
+# Python 快取與測試暫存檔
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# 執行暫存與狀態檔
+scratch/
+qc_status.json
+
+# 封存舊檔案目錄
+old data/
+
 # 壓縮包與依賴檔
 *.zip
 *.tar.gz
 node_modules/
+
