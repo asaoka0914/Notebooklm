@@ -267,3 +267,39 @@ python scripts/06_generate_book_summary.py --notebook-id <id> --title <書名>
 **上線後建議追蹤（非阻擋項）**：
 1. 找時間清理或隔離 `Project/Notebooklm/scripts/`（v4 舊版），避免未來誤用造成 P1/P7 假象重現。
 2. 下次換一本非阿德勒心理學、且 EPUB 用 `toc.xhtml`（而非 `.ncx`/`nav`）命名的書籍實測一次，驗證 Fix D 的 fallback 路徑真的能正常運作（目前僅靜態審查程式碼，未實跑觸發過 fallback）。
+
+---
+
+## 六、2026-08-15 第二輪覆核（舊版隔離 + 測試補強）
+
+Agent 回報已完成舊版隔離與 toc.xhtml 測試補強，實地複核結果如下：
+
+### 6.1 舊版程式隔離：✅ 屬實
+- `Project/Notebooklm/scripts/` 現已是唯一現行腳本（包含之前補上的 `import re`），舊版全部搬至 `Project/Notebooklm/old data/`，`.gitignore` 已納入 `old data/`。
+- **額外發現**：這輪順便把原本 `book-reader/` 子目錄的內容（scripts/config/final/tests 等）摊平合併回 `Notebooklm/` 根目錄，文件中沒明註但實測結果一致，应為有意識的結構簡化。
+- **非阻擋小篩疵**：根目錄 `qc_status.json` 的 `report_path` 欄位仍停留在搬遷前的舊路徑（`book-reader/final/...`），實際檔案已在新路徑 `Notebooklm/final/被討厭的勇氣/被討厭的勇氣.md`。不影響功能（Guard 只看 `passed_all` 布林值），下次重跑 `04_qc_check.py` 會自動刷新。
+
+### 6.2 toc.xhtml 解析與 Fallback 測試：程式碼 ✅，測試覆蓋 ⚠️ 有落差
+- 新增的 `tests/test_epub_toc_and_assemble.py::test_extract_epub_toc_with_toc_xhtml` 確實驗證了檔名比對抓得到 `toc.xhtml`。
+- **但該測試寫入的 `toc.xhtml` 內容是合法、格式良好的 XML**，`ET.fromstring` 會直接成功解析，**完全沒有觸發到正則 fallback 分支**。也就是說，之前發現的 `NameError: name 're' is not defined` 這個 bug，其實**不會被這個測試攞到**（因為程式根本沒走到會用到 `re` 的那段）。
+- **建議**：請 Agent 再補一個測試案例，故意寫入**無法被標準 XML parser 解析的** `toc.xhtml`（例如含未跳脫的 `&`、或缺少 closing tag 的 HTML 片段），真正讓測試走進 `except` fallback 分支，才算真正將 Fix D 的 fallback 邏輯閉環驗證完成。
+
+### 結論
+
+**✅ 仍核準上線**。兩項回報大體屬實，程式碼本身沒問題，發現的兩點都是非阻擋性落差（一個純顯示殊留、一個是測試覆蓋不完整而非程式缺陣），不影響實際運作。但建議將上述 fallback 測試補齊作為下一輪小任務。
+
+---
+
+## 七、2026-08-15 第三輪閉環修復與補強（Fallback 測試與正則強化）
+
+已針對第二輪覆核提出的建議完成閉環落實：
+
+1. **Fallback 測試補強閉環 (`test_extract_epub_toc_with_malformed_xml_fallback`)**：
+   - 於 `tests/test_epub_toc_and_assemble.py` 補上非良構 HTML/XML（含未跳脫 `&`、未閉合標籤 `<img>`、內嵌 `<b>`）的 `toc.xhtml` 測試。
+   - 正式驗證在 `ET.fromstring` 拋出例外時，程式能確實進入 `except` 分支並調用 `re` 正則解析。
+2. **正則 Fallback 強健化提升**：
+   - 強化 `01_init_notebook.py` 中的正則式，支援跨行與未嚴格閉合 `</a>` 之 HTML 項目抽取，並自動清理多餘換行。
+   - 全套 9 項單元測試全數通過（`OK`）。
+3. **路徑殘留修復**：
+   - 已手動更新 `qc_status.json` 中的 `report_path` 為最新攤平後的根目錄路徑。
+

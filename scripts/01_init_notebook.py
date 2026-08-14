@@ -77,12 +77,15 @@ def extract_epub_toc(book_path):
                             if text not in chapters:
                                 chapters.append(text)
                 except Exception as inner_e:
-                    # XML parsing fallback: 正則匹配 <a> 標籤內容
+                    # XML parsing fallback: 正則匹配 <a> 標籤內容 (針對非格式良好之 HTML/XHTML)
                     try:
                         raw_str = content.decode('utf-8', errors='ignore')
-                        matches = re.findall(r'<a[^>]*>(.*?)</a>', raw_str, flags=re.DOTALL)
-                        for m in matches:
+                        # 擷取 <a ...> 與其後續文本內容 (直到 </a> 或 <li 或 <ol 或 </ol 等下個結構)
+                        raw_items = re.findall(r'<a[^>]*>(.*?)(?:</a>|(?=\s*<li|\s*</li|\s*</ol|\s*</ul|\s*</nav|\Z))', raw_str, flags=re.DOTALL | re.IGNORECASE)
+                        for m in raw_items:
                             clean_m = re.sub(r'<[^>]+>', '', m).strip()
+                            # 清理多餘換行
+                            clean_m = re.sub(r'\s+', ' ', clean_m)
                             if clean_m and ("章" in clean_m or "Chapter" in clean_m or "法則" in clean_m or "夜" in clean_m or clean_m in ("前言", "序言", "結語", "後記", "緒論")):
                                 if clean_m not in chapters:
                                     chapters.append(clean_m)

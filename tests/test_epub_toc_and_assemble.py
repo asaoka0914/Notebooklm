@@ -28,7 +28,7 @@ class TestEPUBTOCAndAssemble(unittest.TestCase):
             shutil.rmtree(self.test_dir)
 
     def test_extract_epub_toc_with_toc_xhtml(self):
-        # 建立包含 toc.xhtml 的虛擬 EPUB
+        # 建立包含 toc.xhtml 的虛擬 EPUB (標準 XML 結構)
         epub_path = os.path.join(self.test_dir, 'sample_toc.epub')
         toc_xhtml_content = """<?xml version="1.0" encoding="utf-8"?>
         <html xmlns="http://www.w3.org/1999/xhtml">
@@ -51,6 +51,31 @@ class TestEPUBTOCAndAssemble(unittest.TestCase):
         self.assertIn("第一章：引言", chapters)
         self.assertIn("第二章：核心原理", chapters)
         self.assertIn("第三章：實踐指南", chapters)
+
+    def test_extract_epub_toc_with_malformed_xml_fallback(self):
+        # 建立包含非嚴格 XML（如未轉義 & 或缺少結尾標籤）的 toc.xhtml，強制觸發正則 fallback
+        epub_path = os.path.join(self.test_dir, 'malformed_toc.epub')
+        malformed_content = """
+        <html>
+        <body>
+            <!-- 非良好格式 XML: 缺少 xml header、未跳脫的 & 符號、未閉合標籤等 -->
+            <nav>
+                <ol>
+                    <li><a href="p1.html">第一章：哲學 & 心理學的交會 <img src="icon.png">
+                    <li><a href="p2.html">第二章：<b>阿德勒的核心觀點</b></a>
+                    <li><a href="p3.html">第三章：追求卓越的法則</a>
+                </ol>
+        </body>
+        """
+        with zipfile.ZipFile(epub_path, 'w') as z:
+            z.writestr('OEBPS/toc.xhtml', malformed_content)
+
+        chapters = self.init_module.extract_epub_toc(epub_path)
+        self.assertEqual(len(chapters), 3)
+        self.assertIn("第一章：哲學 & 心理學的交會", chapters)
+        self.assertIn("第二章：阿德勒的核心觀點", chapters)
+        self.assertIn("第三章：追求卓越的法則", chapters)
+
 
     def test_prepend_article_frontmatter(self):
         # 測試 frontmatter 注入功能
