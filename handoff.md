@@ -1,13 +1,12 @@
 # Handoff (交接紀錄)
 
-- **最後更新時間**: 2026-08-14 22:48
+- **最後更新時間**: 2026-08-15 06:36
 - **最後操作裝置**: 家裡電腦 (AsaokaNotebook-9527)
-- **當前狀態**: 🟢 book-reader v5.0.2 修正與強化完成（8 項 tests 全部 100% 通過）
+- **當前狀態**: 🟢 Notebooklm / book-reader v5.0.3 正式完成並發佈（含一鍵安裝與動態 Vault 偵測）
 - **目前做到哪**: 
-  - 完成 `06_generate_book_summary.py` QC Guard 嚴格校驗：強制校驗 `qc_status.json` 存在性、書名匹配與 `passed_all == True`，防止前書籍殘留狀態誤用。
-  - 完成 `01_init_notebook.py` 的 `extract_epub_toc()` 擴充：支援 `toc.xhtml` 及更多命名，並增加 HTML 標籤提取容錯。
-  - 完成 `03_assemble_report.py` 內建 `prepend_article_frontmatter()` 串流注入 YAML Frontmatter 函式，並將 Obsidian 舊相容複製改存至 `raw/__cleanup_pending__/`，避免污染 raw 根目錄。
-  - 完成專案與全域 `SKILL.md` 同步更新。
-  - 新增 `tests/test_qc_guard.py` 與 `tests/test_epub_toc_and_assemble.py`，全套 8 項單元測試 100% 通過。
+  - **專案結構統一升級**：已將舊有之歷史腳本與計劃文件全數封存至 `old data/`，並以 `book-reader` 最新主程式作為根目錄主要架構。
+  - **跨電腦一鍵安裝腳本 (`install.ps1`)**：純 ASCII 實作，一鍵完成 Gemini / Claude 全域 Skills 目錄佈署與 Python 依賴安裝。
+  - **動態 Obsidian Vault 搜尋模組 (`scripts/env_config.py`)**：自動解析本機 `obsidian.json` 與候選清單，適應公司/家裡多電腦環境，並與 `03_assemble_report.py` 整合。
+  - **文件與遠端同步**：更新 `README.md` 安裝指南與 Changelog，所有修改通過單元測試並已全部推送至 GitHub `https://github.com/asaoka0914/Notebooklm`。
 - **下一次開工建議**: 
-  - book-reader（長文/書籍管線）已完成所有發現問題之修復與防護強化，可隨時用於任何新書籍擷取與整理。
+  - 換到其他電腦時，只需在專案目錄執行 `powershell -ExecutionPolicy Bypass -File install.ps1` 即可瞬間完成設定並直接調用 `book-reader` 進行書籍導讀報告生成。
