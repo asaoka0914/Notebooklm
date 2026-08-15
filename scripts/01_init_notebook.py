@@ -59,6 +59,25 @@ def extract_epub_cover(book_path, output_cover_path):
         print(f"⚠️ Failed to extract EPUB cover: {e}")
     return False
 
+FRONTMATTER_KEYWORDS = (
+    "封面", "推薦序", "推荐序", "前言", "致謝", "致谢",
+    "序言", "緒論", "作者序", "譯者序", "出版序",
+    "後記", "结语", "結語", "目錄", "目录", "Table of Contents",
+)
+
+def _is_frontmatter(text: str) -> bool:
+    return any(kw in text for kw in FRONTMATTER_KEYWORDS)
+
+CHAPTER_MARKERS = (
+    "章", "Chapter", "chapter", "篇", "Part", "part", "PART",
+    "Unit", "unit", "Lesson", "lesson", "法則", "夜", "卷", "節", "讲", "講"
+)
+
+def _is_chapter_candidate(text: str) -> bool:
+    has_marker = any(marker in text for marker in CHAPTER_MARKERS)
+    return bool(text) and has_marker and not _is_frontmatter(text)
+
+
 def extract_epub_toc(book_path):
     if not os.path.exists(book_path) or not book_path.lower().endswith(".epub"):
         return []
@@ -73,7 +92,7 @@ def extract_epub_toc(book_path):
                     for elem in root.iter():
                         # 擷取 element text 或 tail text
                         text = (elem.text or "").strip()
-                        if text and ("章" in text or "Chapter" in text or "法則" in text or "夜" in text or text in ("前言", "序言", "結語", "後記", "緒論")):
+                        if _is_chapter_candidate(text):
                             if text not in chapters:
                                 chapters.append(text)
                 except Exception as inner_e:
@@ -124,7 +143,7 @@ def extract_epub_toc(book_path):
                         for m in candidates:
                             clean_m = re.sub(r'<[^>]+>', '', m).strip()
                             clean_m = re.sub(r'\s+', ' ', clean_m)
-                            if clean_m and ("章" in clean_m or "Chapter" in clean_m or "法則" in clean_m or "夜" in clean_m or clean_m in ("前言", "序言", "結語", "後記", "緒論")):
+                            if _is_chapter_candidate(clean_m):
                                 if clean_m not in chapters:
                                     chapters.append(clean_m)
                     except Exception:
@@ -171,12 +190,11 @@ def _parse_toc_response(raw_gt):
     except Exception:
         pass
 
-    # 2. JSON 解析失敗，退回原本的關鍵字過濾（相容非章/Chapter/法則以外的情況也擴充關鍵字）
+    # 2. JSON 解析失敗，退回原本的關鍵字過濾（使用統一的 CHAPTER_MARKERS 集合）
     chapters = []
-    keywords = ("章", "Chapter", "chapter", "法則", "Part", "PART", "Unit", "Lesson")
     for line in raw_gt.split('\n'):
         line_str = line.strip()
-        if line_str and any(kw in line_str for kw in keywords):
+        if _is_chapter_candidate(line_str):
             chapters.append(line_str)
     return chapters
 

@@ -10,6 +10,24 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 MAX_RETRY_BATCH = 3
 
+# 模組層級安全匯入與初始化 OpenCC（只初始化一次，避免每次 QC 比對或 backfill pass 重複載入字典表）
+try:
+    import opencc
+    _CC = opencc.OpenCC('s2t')  # 簡→繁
+except Exception:
+    _CC = None
+    print("⚠️ [Notice] 未偵測到 opencc 套件，QC 比對將略過簡繁同化（建議執行 pip install opencc-python-reimplemented）。")
+
+def _normalize(s):
+    """將文字進行繁簡同化並移除常見標點符號（含全形彎引號），提升比對容錯度。"""
+    if _CC is not None:
+        try:
+            s = _CC.convert(s)  # 先同化為繁體
+        except Exception:
+            pass
+    return re.sub(r'[\s:："\u2018\u2019\u201c\u201d\'\.,;!?、《》【】「」()\(\)]', '', s)
+
+
 def run_single_qc_pass(report_path):
     """執行單次 QC 比對檢查，回傳 (passed_all, missing_chapters)"""
     failed_path = os.path.join(BASE_DIR, "failed_batches.json")
@@ -72,9 +90,6 @@ def run_single_qc_pass(report_path):
                 gt_data = json.load(gtf)
             total_gt = gt_data.get("total_chapters", 0)
             gt_chapters = gt_data.get("chapters", [])
-
-            def _normalize(s):
-                return re.sub(r'[\s:：""''""\'\'\.,;!?、《》【】「」()\(\)]', '', s)
 
             for gt_chap in gt_chapters:
                 norm_gt = _normalize(gt_chap)

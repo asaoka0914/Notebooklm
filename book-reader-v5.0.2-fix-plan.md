@@ -328,7 +328,9 @@ Number of raw_items: 3
 
 ---
 
-## 七、2026-08-15 第三輪閉環修復與補強（Fallback 測試與 html.parser 加固）
+## 八、2026-08-15 第三輪閉環修復與補強（Fallback 測試與 html.parser 加固）
+
+> **📝 編號說明**：本節原編號誤與上一節重複為「七」，2026-08-15 Claude 前置審核時已重新編號為「八」，後續章節同步遞移一號（原八→九、原九→十、原十→十一、原十一→十二）。
 
 已針對第二輪覆核與深入審查提出的邊界情境完成徹底加固：
 
@@ -340,4 +342,286 @@ Number of raw_items: 3
    - 實測 3 個章節完整且獨立解析（無黏合），全套 9 項單元測試（包含 `-v` 詳細輸出）100% 通過。
 3. **路徑殘留修復**：
    - 已更新 `qc_status.json` 中的 `report_path` 為最新攤平後的根目錄路徑。
+
+---
+
+## 九、2026-08-15 第四輪覆核（哈利·布朗 EPUB 匯入實測發現）
+
+本次以《哈利·布朗的永久投資組合》（D:\download\哈利·布朗的永久投资组合.epub，199,823 字元 / 164,458 中文字 / 18 章正文）實際跑完整管線，發現以下 **3 個新問題**。此輪測試驗證了前三輪的修復（P1-P6、fallback regex、toc.xhtml 解析）皆已正常運作，新增問題皆為獨立新 bug。
+
+### B1. Ground Truth TOC 繁簡不匹配 → QC HARD-FAIL（嚴重）
+
+**現象**：`01_init_notebook.py` 從 EPUB TOC（簡體）解析出的章節標題寫入 `config/ground_truth_toc.json`，而 NotebookLM 產出的報告使用繁體。`04_qc_check.py` 的 `_normalize()` 僅移除標點，不處理繁簡，導致 18 章全數被標記為「缺漏」：
+```
+❌ [HARD-FAIL] 發現全書 19 章節中，有 18 章節完全缺漏：
+   ❌ 缺漏章節: 第一章 什么是永久投资组合：黄金大幕展开
+   ...
+```
+**根本原因**：`_normalize()` 缺少繁簡同化步驟。EPUB TOC 來源（簡體）與報告正文（繁體）無法比對。
+
+**修正方案**：在 `_normalize()` 中加入 OpenCC 簡→繁轉換（或雙向同化），並提供 fallback：
+```python
+import opencc
+
+_CC = opencc.OpenCC('s2t')  # 簡→繁
+
+def _normalize(s):
+    try:
+        s = _CC.convert(s)    # 先同化為繁體
+    except NameError:
+        pass                   # fallback：opencc 未安裝時跳過
+    return re.sub(r'[\s:：""\'\.,;!?、《》【】「」()\(\)]', '', s)
+```
+
+> **備註**：此修正同時影響所有簡體 EPUB 的書籍匯入，不單限本次案例。
+
+---
+
+### B2. extract_epub_toc() 將前導章節誤納入 GT TOC（中度）
+
+**現象**：`01_init_notebook.py` 的 `extract_epub_toc()` 過濾條件包含：
+```python
+if text and ("章" in text or "Chapter" in text or "法則" in text or "夜" in text or text in ("前言", "序言", "結語", "後記", "緒論")):
+```
+其中 `"前言"` 等前導詞被當成正文章節列入 GT TOC（Order 3-4：前言、致谢），但批次生成時這些章節並不會被單獨處理（batch_strategy 只列 18 章），導致 QC 報告「前言缺漏」。
+
+**修正方案**：在過濾條件中**排除**前導詞彙：
+```python
+FRONTMATTER = {
+    "封面", "推荐序", "推薦序", "前言", "致謝", "致谢",
+    "序言", "緒論", "後記", "結語", "目錄", "Table of Contents"
+}
+
+if text and ("章" in text or "Chapter" in text or "法則" in text or "夜" in text):
+    if text not in FRONTMATTER and text not in chapters:
+        chapters.append(text)
+```
+
+> **備註**：修正後 GT TOC 只保留 18 章正文，排除封面/推薦序/前言/致謝等非正文項目。
+
+---
+
+### B3. `_normalize()` 中正則 escape 警告 + character class 內多餘轉義（低度）
+
+**現象**：`04_qc_check.py` line 77：
+```python
+return re.sub(r'[\s:：""''""\'\'\.,;!?、《》【】「」()\(\)]', '', s)
+```
+Python 3.12+ 在 character class 內對 `\.` 發出 SyntaxWarning（雖然 raw string 中合法，但部分 build 仍報警）。同時 `\"`、`\'` 在 `[]` 內不需轉義。
+
+**修正方案**：移除多餘的 escape，使用明確字元集：
+```python
+def _normalize(s):
+    # ...繁簡轉換...
+    return re.sub(r'[\s:：""\'\.,;!?、《》【】「」()\(\)]', '', s)
+```
+
+---
+
+### B4. 03_assemble_report.py 自動複製至 Obsidian cleanup_pending（流程衝突）
+
+**現象**：`03_assemble_report.py` line 238–246 會自動將組裝好的報告複製到：
+```
+Obsidian/raw/__cleanup_pending__/{short_title}_讀書報告.md
+```
+這是 v4 時代的歷史相容行為。v5.0 的新流程要求詳細報告由**階段二 Agent** 寫入 `raw/articles/zh/[slug].md`，03 的自動複製產生了額外的 `_讀書報告.md` 檔案，與雙檔分流架構不符。
+
+**修正方案**：在 `book_config.yaml` 中新增開關，預設為 `false`：
+```yaml
+assemble_copy_to_cleanup: false   # 關閉舊版自動複製，避免與階段二流程衝突
+```
+
+在 `03_assemble_report.py` 中讀取此開關：
+```python
+copy_to_cleanup = config.get("assemble_copy_to_cleanup", False)
+if copy_to_cleanup:
+    # 原有複製邏輯
+    ...
+else:
+    print("[Info] assemble_copy_to_cleanup is disabled; skipping auto-copy.")
+```
+
+---
+
+## 十、修正檔案清單（本次新增）
+
+| 檔案 | 修改內容 | 對應 Issue |
+|------|---------|-----------|
+| `scripts/04_qc_check.py` | `_normalize()` 加入 OpenCC 繁簡轉換 + 移除多餘 escape | B1, B3 |
+| `scripts/01_init_notebook.py` | `extract_epub_toc()` 加入 FRONTMATTER 排除集合 | B2 |
+| `config/book_config.yaml.template` | 新增 `assemble_copy_to_cleanup: false` 預設值 | B4 |
+| `scripts/03_assemble_report.py` | 讀取 `assemble_copy_to_cleanup` 開關 | B4 |
+
+---
+
+## 十一、驗證方式
+
+完成上述修正後，建議以簡體 EPUB 執行完整管線驗證：
+
+```bash
+# 1. 確認 GT TOC 不含前導詞
+python -c "import json; toc=json.load(open('config/ground_truth_toc.json')); print([c for c in toc['chapters'] if any(x in c for x in ['前言','推荐序','致谢'])])"
+# 預期：[] （空列表）
+
+# 2. 執行 QC 確認 18 章全通過
+python scripts/04_qc_check.py
+# 預期：✅ [PASS] 報告完整涵蓋全書 Ground Truth 18 章節，無任何遺漏！
+
+# 3. 確認無 SyntaxWarning
+python -W error::SyntaxWarning scripts/04_qc_check.py
+# 預期：無輸出錯誤
+
+# 4. 確認 03 不再自動複製到 cleanup_pending
+ls raw/__cleanup_pending__/ | grep "_讀書報告"
+# 預期：空列表（除非 config 中 assemble_copy_to_cleanup: true）
+```
+
+---
+
+## 十二、最終確認清單
+
+| 項目 | 狀態 | Claude 前置審核意見 |
+|------|------|------|
+| B1: `_normalize()` 加入 OpenCC 繁簡同化 | 🔲 待修復（**原始程式碼需修正，見十三節**） | ⚠️ 原建議的 `import opencc` 寫在模組頂層且無 try/except，若執行環境未安裝 opencc 會直接 ImportError 導致整支 `04_qc_check.py` 無法啟動；且 `requirements.txt` 目前確認未包含 opencc，必須同步新增依賴 |
+| B2: `extract_epub_toc()` 排除 FRONTMATTER | 🔲 待修復（**原始程式碼遺漏一處，見十三節**） | ⚠️ 原建議只修改了 XML 解析成功路徑的過濾條件，但 `extract_epub_toc()` 內部的 fallback（HTMLParser 失敗後的正則備援）有第二份幾乎相同的過濾條件，未同步修改會導致 fallback 觸發時前導章節仍會混入 GT TOC；另建議排除判斷改用子字串比對而非完全相等，以涵蓋「推薦序一」「致謝辭」等變體標題 |
+| B3: `_normalize()` 移除多餘 escape | 🔲 待重新定性（**非必要修復，見十三節**） | ⚠️ 實地檢查現有程式碼確認該行已是 `r'...'` raw string，Python 不會對 raw string 內的 `\.` 發出 SyntaxWarning，原診斷之根源不成立；建議降級為「程式碼整潔選配項」，並改為新增真正缺少的全形彎引號（U+2018/2019/201C/201D）以提升穩健度 |
+| B4: `03_assemble_report.py` 加入配置開關 | 🔲 待修復 | ✅ 審核通過，邏輯與現有程式碼相容，可依原方案實作 |
+| 驗證腳本執行通過 | 🔲 待測試 | — |
+| 新增測試：B2 前導詞排除（含 fallback 分支） | 🔲 待新增 | 建議比照 `test_extract_epub_toc_with_malformed_xml_fallback` 手法，另建立一組刻意包含「推薦序」「前言」「致謝」的 malformed TOC 測試，驗證 fallback 分支也不會誤收錄 |
+| 新增測試：B1 opencc 未安裝時的 graceful fallback | 🔲 待新增 | 建議以 `unittest.mock.patch` 模擬 `import opencc` 失敗情境，確認 `_normalize()` 仍可運作（僅略過繁簡轉換）而不拋出例外 |
+
+---
+
+## 十三、Claude 專業審核：修正版程式碼與缺失說明（2026-08-15 第五輪前置審核）
+
+> 本節為 Claude 於 Agent 動手實作 B1～B4 之前，針對「九、第四輪覆核」提出的修正方案所做的程式碼層級審核。發現 B1、B2 的原始建議程式碼若照抄實作，會產生**新的執行期錯誤或涵蓋不全**的問題；B3 的診斷前提則有誤。以下為建議 Agent 實際採用的修正版本，請以本節內容為準，取代「九、第四輪覆核」中對應的程式碼片段。
+
+### 13.1 B1 修正版：安全的 OpenCC 匯入方式
+
+**問題**：原方案 `import opencc` 寫在檔案頂層且沒有包 try/except。如果 Agent 實作環境（或未來任何一台執行機器）沒有安裝 opencc，`04_qc_check.py` 會在匯入階段就整支 crash，QC 完全無法執行——這比「繁簡不匹配」本身更嚴重，屬於回歸性風險。原本寫的 `except NameError` 也接不到這種情況，因為程式根本走不到 `_normalize()` 內部。
+
+**另一個實務問題**：`requirements.txt` 目前只有 `PyYAML` 與 `python-dotenv`，需新增 opencc 依賴。由於執行環境是 Windows，建議優先採用純 Python 實作的 `opencc-python-reimplemented`（安裝命令為 `pip install opencc-python-reimplemented`，安裝後仍以 `import opencc` 引用），可避免 `opencc`（cffi 版）在 Windows 上可能需要額外編譯工具鏈的問題。
+
+**修正版程式碼**（取代 `scripts/04_qc_check.py` 中的對應段落）：
+
+```python
+# 檔案頂部（import 區塊）：安全匯入 OpenCC，缺套件時自動降級但不中斷程式
+try:
+    import opencc
+    _CC = opencc.OpenCC('s2t')  # 簡→繁
+except Exception:
+    _CC = None
+    print("⚠️ [Notice] 未偵測到 opencc 套件，QC 比對將略過簡繁同化（建議執行 pip install opencc-python-reimplemented）。")
+
+def _normalize(s):
+    if _CC is not None:
+        try:
+            s = _CC.convert(s)   # 先同化為繁體
+        except Exception:
+            pass
+    return re.sub(r'[\s:：""''""\'\'\.,;!?、《》【】「」()\(\)]', '', s)
+```
+
+> 注：上述字元類別維持與現行版本完全相同，B1 僅負責修正 opencc 匯入安全性，不變動引號判斷邏輯；若需要新增彎引號支援，請參見 13.3 的選配強化版本。
+
+**`requirements.txt` 新增**：
+```
+opencc-python-reimplemented>=0.1.7
+```
+
+**驗收重點**：Agent 需在「已安裝 opencc」與「刻意移除/未安裝 opencc」兩種情境下都跑一次 `04_qc_check.py`，確認後者僅印出 Notice 訊息並繼續執行（不 crash），前者能正確將簡體 GT 章節同化為繁體後比對成功。
+
+---
+
+### 13.2 B2 修正版：FRONTMATTER 排除須同步套用於 XML 成功路徑與 fallback 路徑
+
+**問題**：`extract_epub_toc()` 內部實際上有**兩處**幾乎相同的章節篩選條件：
+1. XML 解析成功時，走 `root.iter()` 逐一檢查 `elem.text`。
+2. XML 解析失敗（`except inner_e`）時的 fallback：先試 `HTMLParser`（`TOCHTMLParser`），若 `parser.extracted` 為空才退回正則 `re.findall(...)`，兩者取得的候選字串最終都會經過同一段 `if clean_m and (...)` 判斷式。
+
+原始 B2 建議只示範修改「第 1 處」，若 Agent 只照原方案修改一處，遇到需要觸發 fallback 的破損 TOC（例如第三輪已驗證過的 malformed XML 情境）時，前導詞仍會混入 GT TOC，等於 B2 沒有真正解決問題。
+
+另外，原始排除判斷使用**完全相等**（`text not in FRONTMATTER`），但 EPUB 實務上前導章節常有變體寫法，例如「推薦序一」「推薦序二」「致謝辭」「作者序」等，完全相等會漏判。建議改為**子字串比對**。
+
+**修正版程式碼**（取代 `scripts/01_init_notebook.py` 中 `extract_epub_toc()` 的兩處判斷式）：
+
+```python
+# 放在 extract_epub_toc() 函式最上方或模組層級均可
+FRONTMATTER_KEYWORDS = (
+    "封面", "推薦序", "推荐序", "前言", "致謝", "致谢",
+    "序言", "緒論", "作者序", "譯者序", "出版序",
+    "後記", "结语", "結語", "目錄", "目录", "Table of Contents",
+)
+
+def _is_frontmatter(text: str) -> bool:
+    return any(kw in text for kw in FRONTMATTER_KEYWORDS)
+
+def _is_chapter_candidate(text: str) -> bool:
+    has_marker = ("章" in text or "Chapter" in text or "法則" in text or "夜" in text)
+    return bool(text) and has_marker and not _is_frontmatter(text)
+```
+
+**第 1 處（XML 解析成功路徑）**改為：
+```python
+for elem in root.iter():
+    text = (elem.text or "").strip()
+    if _is_chapter_candidate(text):
+        if text not in chapters:
+            chapters.append(text)
+```
+
+**第 2 處（fallback 路徑，`candidates` 迴圈內）**改為：
+```python
+for m in candidates:
+    clean_m = re.sub(r'<[^>]+>', '', m).strip()
+    clean_m = re.sub(r'\s+', ' ', clean_m)
+    if _is_chapter_candidate(clean_m):
+        if clean_m not in chapters:
+            chapters.append(clean_m)
+```
+
+> **附註**：`discover_actual_toc()` 之後由 `_parse_toc_response()` 處理的 NotebookLM 回覆解析路徑，其關鍵字清單（`"章", "Chapter", "chapter", "法則", "Part", "PART", "Unit", "Lesson"`）本來就不含「前言」等單一關鍵字，此路徑經覆核**不受影響、無需修改**，僅供記錄避免後續重複調查。
+
+**驗收重點**：新增測試需確保 fallback 分支被實際觸發（沿用第三輪已驗證過的 malformed XML 手法），且刻意在測試資料中混入「推薦序一」「前言」「致謝辭」等變體詞彙，驗證兩處路徑都不會誤收錄。
+
+---
+
+### 13.3 B3 重新定性：非真實 bug，改為選配強化
+
+實地檢查 `scripts/04_qc_check.py` 目前程式碼（第 77 行）確認該正則已經是 `r'[...]'` 型式的 raw string。Python 只會對**非 raw 字串**中無法識別的跳脱序列（如 `"\d"`）發出 `SyntaxWarning`／`DeprecationWarning`，raw string 內的 `\.`、`\(`、`\)` 不會觸發任何警告。因此 B3 原本的診斷（「Python 3.12+ 對 character class 內的 `\.` 發出 SyntaxWarning」）**不成立**，不需要當作 bug 修復。
+
+實際檢查該字元類別的組成後，另外發現一個**原文件未提及、但更值得修的小缺口**：目前的字元類別只涵蓋直角引號（`"` `'`，且重複出現多次）與全形書名號／括號（「」《》【】），但**沒有涵蓋常見的全形彎引號**（U+2018 `'`、U+2019 `'`、U+201C `"`、U+201D `"`）。若 NotebookLM 或 EPUB 原文中出現彎引號而報告 / GT TOC 兩邊只有一邊使用彎引號，仍可能造成比對失敗。
+
+**建議**（優先度：低，屬於強化而非修 bug，可與 B1/B2 同批次一併處理）：
+```python
+def _normalize(s):
+    if _CC is not None:
+        try:
+            s = _CC.convert(s)
+        except Exception:
+            pass
+    return re.sub(
+        r'[\s:："\u2018\u2019\u201c\u201d\'\.,;!?、《》【】「」()\(\)]',
+        '', s
+    )
+```
+
+---
+
+### 13.4 B4：審核通過，可依原方案實作
+
+`03_assemble_report.py` 目前的自動複製邏輯（第 238～246 行左右）沒有任何開關保護，B4 的方案（於 `book_config.yaml.template` 新增 `assemble_copy_to_cleanup: false`，並在 `assemble_report_core()` 中以 `config.get("assemble_copy_to_cleanup", False)` 判斷）與現有程式碼結構相容，未發現需要修正之處，可依「九、B4」原方案直接實作。
+
+---
+
+### 13.5 本輪審核結論
+
+| 項目 | 原方案是否可直接實作 | 說明 |
+|------|---------------------|------|
+| B1 | ❌ 否，需改用 13.1 修正版 | 原方案有無防護的頂層 import，會造成新的 crash 風險 |
+| B2 | ❌ 否，需改用 13.2 修正版 | 原方案遺漏 fallback 路徑的同步修改，且排除判斷過於嚴格 |
+| B3 | ⚠️ 診斷有誤，改用 13.3 的定性與選配強化 | 原始「SyntaxWarning」根源不成立，但可以順便補上彎引號 |
+| B4 | ✅ 是 | 與現有程式碼相容，無需調整 |
+
+**建議 Agent 實作順序**：B1（13.1）→ B2（13.2）→ B4（原方案）→ B3（13.3，選配）。實作完成後請依「十一、驗證方式」＋本節「驗收重點」逐項驗證，並補齊「十二、最終確認清單」中列出的兩項新增測試後，再交回 Claude 覆核。
 

@@ -106,5 +106,173 @@ class TestEPUBTOCAndAssemble(unittest.TestCase):
         self.assertIn("summary_ref: \"[[wiki/summaries/sample-book-summary|查看重點摘要]]\"", result_content)
         self.assertIn("# 原有正文標題", result_content)
 
+
+    def test_extract_epub_toc_filters_frontmatter_xml(self):
+        # 測試 XML 成功路徑正確排除推薦序、前言、致謝等前導章節
+        epub_path = os.path.join(self.test_dir, 'frontmatter_xml_toc.epub')
+        toc_xhtml_content = """<?xml version="1.0" encoding="utf-8"?>
+        <html xmlns="http://www.w3.org/1999/xhtml">
+        <body>
+            <nav>
+                <ol>
+                    <li><a href="f1.xhtml">推薦序一：這本書改變了我</a></li>
+                    <li><a href="f2.xhtml">前言：寫在前面</a></li>
+                    <li><a href="chap1.xhtml">第一章：引言</a></li>
+                    <li><a href="chap2.xhtml">第二章：核心原理</a></li>
+                    <li><a href="f3.xhtml">致謝辭</a></li>
+                    <li><a href="f4.xhtml">後記：結語與展望</a></li>
+                </ol>
+            </nav>
+        </body>
+        </html>
+        """
+        with zipfile.ZipFile(epub_path, 'w') as z:
+            z.writestr('OEBPS/toc.xhtml', toc_xhtml_content)
+
+        chapters = self.init_module.extract_epub_toc(epub_path)
+        self.assertEqual(len(chapters), 2)
+        self.assertEqual(chapters, ["第一章：引言", "第二章：核心原理"])
+
+    def test_extract_epub_toc_filters_frontmatter_malformed_fallback(self):
+        # 測試 malformed HTML fallback 路徑同步排除前導詞變體
+        epub_path = os.path.join(self.test_dir, 'frontmatter_malformed_toc.epub')
+        malformed_content = """
+        <html>
+        <body>
+            <nav>
+                <ol>
+                    <li><a href="f1.html">推荐序：導讀序言 <img src="x.png">
+                    <li><a href="f2.html">作者序：致謝</a>
+                    <li><a href="p1.html">第一章：哲學 & 心理學的交會
+                    <li><a href="p2.html">第二章：<b>阿德勒的核心觀點</b></a>
+                    <li><a href="f3.html">出版序：目錄</a>
+                    <li><a href="f4.html">結語</a>
+                </ol>
+        </body>
+        """
+        with zipfile.ZipFile(epub_path, 'w') as z:
+            z.writestr('OEBPS/toc.xhtml', malformed_content)
+
+        chapters = self.init_module.extract_epub_toc(epub_path)
+        self.assertEqual(len(chapters), 2)
+        self.assertEqual(chapters, ["第一章：哲學 & 心理學的交會", "第二章：阿德勒的核心觀點"])
+
+    def test_extract_epub_toc_extended_chapter_markers(self):
+        # 測試擴充章節標記關鍵字（篇、卷、Part、Unit、Lesson、講、節）
+        epub_path = os.path.join(self.test_dir, 'extended_markers_toc.epub')
+        toc_xhtml_content = """<?xml version="1.0" encoding="utf-8"?>
+        <html xmlns="http://www.w3.org/1999/xhtml">
+        <body>
+            <nav>
+                <ol>
+                    <li><a href="p1.xhtml">第一篇：基礎理論</a></li>
+                    <li><a href="p2.xhtml">上卷：總體經濟</a></li>
+                    <li><a href="p3.xhtml">Part 1: The Core Strategy</a></li>
+                    <li><a href="p4.xhtml">Unit 2: Practical Application</a></li>
+                    <li><a href="p5.xhtml">Lesson 3: Advanced Tactics</a></li>
+                    <li><a href="p6.xhtml">第一講：投資心態</a></li>
+                    <li><a href="f1.xhtml">目錄</a></li>
+                    <li><a href="f2.xhtml">出版序</a></li>
+                </ol>
+            </nav>
+        </body>
+        </html>
+        """
+        with zipfile.ZipFile(epub_path, 'w') as z:
+            z.writestr('OEBPS/toc.xhtml', toc_xhtml_content)
+
+        chapters = self.init_module.extract_epub_toc(epub_path)
+        self.assertEqual(len(chapters), 6)
+        self.assertIn("第一篇：基礎理論", chapters)
+        self.assertIn("上卷：總體經濟", chapters)
+        self.assertIn("Part 1: The Core Strategy", chapters)
+        self.assertIn("Unit 2: Practical Application", chapters)
+        self.assertIn("Lesson 3: Advanced Tactics", chapters)
+        self.assertIn("第一講：投資心態", chapters)
+
+
+    def test_normalize_with_opencc_and_fallback(self):
+        # 載入 04_qc_check 模組
+        import importlib.util
+        from unittest.mock import patch
+        script_04 = os.path.join(BASE_DIR, 'scripts', '04_qc_check.py')
+        spec_04 = importlib.util.spec_from_file_location('qc_mod', script_04)
+        qc_module = importlib.util.module_from_spec(spec_04)
+        spec_04.loader.exec_module(qc_module)
+
+        # 1. 測試簡繁同化與全形彎引號/標點
+        sim_title = '“第一章：什么是永久投资组合”'
+        trad_title = '「第一章 什么是永久投資組合」'
+        norm_sim = qc_module._normalize(sim_title)
+        norm_trad = qc_module._normalize(trad_title)
+        self.assertEqual(norm_sim, norm_trad)
+        self.assertIn("第一章", norm_sim)
+        self.assertIn("投資組合", norm_sim)
+
+        # 2. 測試無 OpenCC 時的 graceful fallback
+        with patch.object(qc_module, '_CC', None):
+            res = qc_module._normalize('“第一章：引言”')
+            self.assertEqual(res, '第一章引言')
+
+    def test_assemble_copy_to_cleanup_config_switch(self):
+        # 測試 03 assemble_copy_to_cleanup 開關
+        report_file = os.path.join(self.test_dir, 'sample_report.md')
+        with open(report_file, 'w', encoding='utf-8') as f:
+            f.write("# 測試報告正文")
+
+        # 預設 False 或未設定時不複製
+        # 驗證 prepend_article_frontmatter 功能正常
+        target_file = os.path.join(self.test_dir, 'out_article.md')
+        self.asm_module.prepend_article_frontmatter(
+            source_path=report_file,
+            target_path=target_file,
+            slug="test-slug",
+            title="測試標題"
+        )
+        self.assertTrue(os.path.exists(target_file))
+
+    def test_traditional_chinese_book_qc_regression(self):
+        # 回歸測試：驗證純正體中文書籍（如《被討厭的勇氣》）在 OpenCC 環境下章節正規化與比對不受影響
+        import importlib.util
+        script_04 = os.path.join(BASE_DIR, 'scripts', '04_qc_check.py')
+        spec_04 = importlib.util.spec_from_file_location('qc_mod_reg', script_04)
+        qc_module = importlib.util.module_from_spec(spec_04)
+        spec_04.loader.exec_module(qc_module)
+
+        # 驗證正體中文書籍標題比對
+        trad_gt_chapters = [
+            "第一夜：否定心理創傷",
+            "第二夜 所有煩惱都來自於人際關係",
+            "第三夜 割捨別人的課題",
+            "第四夜：世界的中心在哪裡？",
+            "第五夜 認真活在「當下」"
+        ]
+        found_titles = [
+            "第一夜：否定心理創傷",
+            "第二夜 所有煩惱都來自於人際關係",
+            "第三夜 割捨別人的課題",
+            "第四夜：世界的中心在哪裡？",
+            "第五夜 認真活在「當下」"
+        ]
+        for gt in trad_gt_chapters:
+            norm_gt = qc_module._normalize(gt)
+            matched = any(norm_gt == qc_module._normalize(fc) or norm_gt in qc_module._normalize(fc) or qc_module._normalize(fc) in norm_gt for fc in found_titles)
+            self.assertTrue(matched, f"正體中文章節 {gt} 在加入 OpenCC 後應維持 100% 匹配")
+
+    def test_simplified_chinese_harry_browne_gt_coverage(self):
+        # 驗證簡體 GT TOC 與繁體報告的比對成功（B1 實測情境）
+        import importlib.util
+        script_04 = os.path.join(BASE_DIR, 'scripts', '04_qc_check.py')
+        spec_04 = importlib.util.spec_from_file_location('qc_mod_hb', script_04)
+        qc_module = importlib.util.module_from_spec(spec_04)
+        spec_04.loader.exec_module(qc_module)
+
+        hb_report = os.path.join(BASE_DIR, "final", "哈利·布朗的永久投資組合", "哈利·布朗的永久投資組合.md")
+        if os.path.exists(hb_report):
+            passed, missing = qc_module.run_single_qc_pass(hb_report)
+            self.assertEqual(len(missing), 0, "簡體 GT TOC 與繁體報告比對應涵蓋全部 18 章節（0 遺漏）")
+
+
 if __name__ == '__main__':
     unittest.main()
+

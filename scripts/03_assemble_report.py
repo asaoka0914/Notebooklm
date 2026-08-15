@@ -235,18 +235,22 @@ def assemble_report_core(book_title: str = None):
     print(f"Total Sections Processed: {len(batch_files)}")
     print(f"Total Citations Remapped: {len(references_list)}")
 
-    # 自動複製至 Obsidian raw/__cleanup_pending__/（歷史相容保留，避免污染 raw 根目錄）
-    obsidian_dir = find_obsidian_raw_dir()
-    if obsidian_dir:
-        short_title = book_title.split('：')[0] if '：' in book_title else book_title
-        pending_dir = os.path.join(obsidian_dir, '__cleanup_pending__')
-        os.makedirs(pending_dir, exist_ok=True)
-        obsidian_path = os.path.join(pending_dir, f"{short_title}_讀書報告.md")
-        import shutil
-        shutil.copy2(final_report_path, obsidian_path)
-        print(f"✅ 報告已複製至 Obsidian 待整理區：{obsidian_path}")
+    # 自動複製至 Obsidian raw/__cleanup_pending__/（預設關閉，由配置項 assemble_copy_to_cleanup 控制）
+    copy_to_cleanup = config.get("assemble_copy_to_cleanup", False)
+    if copy_to_cleanup:
+        obsidian_dir = find_obsidian_raw_dir()
+        if obsidian_dir:
+            short_title = book_title.split('：')[0] if '：' in book_title else book_title
+            pending_dir = os.path.join(obsidian_dir, '__cleanup_pending__')
+            os.makedirs(pending_dir, exist_ok=True)
+            obsidian_path = os.path.join(pending_dir, f"{short_title}_讀書報告.md")
+            import shutil
+            shutil.copy2(final_report_path, obsidian_path)
+            print(f"✅ 報告已複製至 Obsidian 待整理區：{obsidian_path}")
+        else:
+            print("⚠️  未找到 Obsidian 目錄，報告請手動複製至目標路徑")
     else:
-        print("⚠️  未找到 Obsidian 目錄，報告請手動複製至目標路徑")
+        print("[Info] assemble_copy_to_cleanup is disabled; skipping auto-copy.")
 
 def prepend_article_frontmatter(source_path, target_path, slug, title, author="", tags=None):
     """

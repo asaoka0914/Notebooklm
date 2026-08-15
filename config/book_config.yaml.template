@@ -6,6 +6,10 @@ book_title: ""
 book_local_path: ""
 rule_source_filename: "讀書報告核心概念.md"
 
+# 是否自動複製報告至 Obsidian __cleanup_pending__（預設 false；v5.0 由階段二 Agent 負責雙檔分流歸檔）
+assemble_copy_to_cleanup: false
+
+
 batch_strategy:
   batches:
     - batch: 1
