@@ -32,12 +32,18 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 
 **安裝腳本自動執行：**
 1. **自動佈署 Skills 目錄**：自動將最新程式與 Skill 同步至 Gemini (`~/.gemini/config/skills/book-reader`) 與 Claude (`~/.claude/skills/book-reader`)。
-2. **安裝 Python 依賴套件**：自動透過 `requirements.txt` 安裝最新 `PyYAML`、`python-dotenv`。
+2. **安裝 Python 依賴套件**：自動透過 `requirements.txt` 安裝最新 `PyYAML`、`python-dotenv`、`opencc-python-reimplemented`。
 3. **動態探索 Obsidian Vault**：內建 `scripts/env_config.py` 自動解析 `obsidian.json` 系統設定檔與跨磁碟候選清單（支援公司筆電/家裡筆電/Google Drive），免手動寫死路徑。
 
 ---
 
 ## 📝 專案更新日誌 (Changelog & Version History)
+
+### v5.0.4 (2026-08-15)
+- **OpenCC 簡繁同化與比對加固 (B1/B3)**：`04_qc_check.py` 於模組層級安全初始化 OpenCC 轉換器，支援簡繁目錄同化比對與全形彎引號（`\u2018`, `\u2019`, `\u201c`, `\u201d`），解決簡體 EPUB TOC 與繁體產出內容比對 Hard-Fail；套件缺失時優雅降級不 crash。
+- **雙路徑前導詞過濾與章節標記關鍵字擴充 (B2)**：`01_init_notebook.py` 在標準 XML 與 Fallback 雙路徑同步採用子字串前導詞過濾（排除前言、推薦序、致謝等），並擴充 `CHAPTER_MARKERS` 納入「篇、Part、Unit、Lesson、法則、夜、卷、節、講」等多種章節結構。
+- **Obsidian 流程解耦開關 (B4)**：`03_assemble_report.py` 與 `book_config.yaml.template` 增加 `assemble_copy_to_cleanup: false` 開關與詳細註解，預設關閉以符合 v5.0 雙檔分流規範。
+- **全套自動化測試擴充**：單元測試擴充至 16 項（涵蓋正體中文回歸測試、簡繁同化、無 OpenCC 降級、擴充章節標記），100% 通過。
 
 ### v5.0.3 (2026-08-15)
 - **新增跨電腦一鍵安裝腳本 (`install.ps1`)**：一鍵完成 Gemini / Claude Skills 佈署、依賴安裝與環境診斷。
