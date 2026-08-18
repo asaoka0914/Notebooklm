@@ -14,7 +14,7 @@ class TestGenerateBookSummary(unittest.TestCase):
         spec.loader.exec_module(summary_module)
         
         prompt = summary_module.build_book_summary_prompt('測試書名', '測試作者')
-        self.assertIn('一、全書 TL;DR', prompt)
+        self.assertIn('一、全書核心', prompt)
         self.assertIn('二、核心心智模型與底層理論', prompt)
         self.assertIn('三、全書邏輯架構與論證脈絡', prompt)
         self.assertIn('四、實踐清單與行動法則', prompt)

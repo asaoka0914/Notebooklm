@@ -24,7 +24,7 @@ def build_book_summary_prompt(book_title, author=''):
     p.append('')
     p.append(f'# 《{book_title}》全書核心精華導讀')
     p.append('')
-    p.append('## 📌 一、全書 TL;DR & 核心命題 (Executive Summary)')
+    p.append('## 📌 一、全書核心(Executive Summary)')
     p.append('- **一句話主旨**：本書核心欲解決的問題與核心論點。')
     p.append('- **作者核心主張**：舊思維範式 vs. 本書提出的新範式。')
     p.append('- **適用對象與情境**：適合誰閱讀、何種決策場景最具參考價值。')

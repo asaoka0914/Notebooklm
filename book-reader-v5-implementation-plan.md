@@ -1,4 +1,4 @@
-﻿# book-reader v5.0 長文與書籍專用實作計畫 (Book & Long-Form Pipeline)
+# book-reader v5.0 長文與書籍專用實作計畫 (Book & Long-Form Pipeline)
 
 > **版本**：v5.0.1（審核修正版）  
 >
@@ -97,7 +97,7 @@ original_ref: [[raw/articles/zh/slug|查看完整章節重點精華]]
 
 # 《書名》全書核心精華導讀
 
-## 📌 一、全書 TL;DR & 核心命題 (Executive Summary)
+## 📌 一、全書核心(Executive Summary)
 - **一句話主旨**：本書核心欲解決的問題與核心論點。
 - **作者核心主張**：舊思維範式 vs. 本書提出的新範式。
 - **適用對象與情境**：適合誰閱讀、何種決策場景最具參考價值。
