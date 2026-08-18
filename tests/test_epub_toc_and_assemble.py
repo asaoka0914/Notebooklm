@@ -300,8 +300,133 @@ class TestEPUBTOCAndAssemble(unittest.TestCase):
 
             orig_join = qc_module.os.path.join
             with patch.object(qc_module.os.path, 'join', side_effect=lambda *args: temp_gt_path if 'ground_truth_toc.json' in args else orig_join(*args)):
-                passed, missing = qc_module.run_single_qc_pass(hb_report)
+                passed, missing, cover_status = qc_module.run_single_qc_pass(hb_report)
                 self.assertEqual(len(missing), 0, "簡體 GT TOC 與繁體報告比對應涵蓋全部 18 章節（0 遺漏）")
+
+    def test_qc_cover_present_and_embedded_passes(self):
+        """測試當 cover.jpg 存在且報告中包含正確封面 img 標籤時，cover_status 為 PASS"""
+        import importlib.util
+        script_04 = os.path.join(BASE_DIR, 'scripts', '04_qc_check.py')
+        spec_04 = importlib.util.spec_from_file_location('qc_mod', script_04)
+        qc_mod = importlib.util.module_from_spec(spec_04)
+        spec_04.loader.exec_module(qc_mod)
+
+        book_dir = os.path.join(self.test_dir, 'cover_test_pass')
+        os.makedirs(book_dir, exist_ok=True)
+        cover_path = os.path.join(book_dir, 'cover.jpg')
+        with open(cover_path, 'wb') as cf:
+            cf.write(b'\xff\xd8\xff\xe0\x00\x10JFIF')  # Dummy JPEG header
+
+        report_path = os.path.join(book_dir, 'full_report.md')
+        report_content = (
+            '# 測試書籍\n\n'
+            '<p align="center">\n'
+            '  <img src="data:image/jpeg;base64,12345" alt="書籍封面" width="300" />\n'
+            '</p>\n\n'
+            '## 第一章 核心架構\n'
+            '📌 核心概念：這是測試概念說明。\n'
+            '💡 重點擷取：這是測試細節內容。\n'
+            + ('測試內文字元擴充以符合長度要求。' * 60) + '\n\n'
+            '## 📚 參考文獻與原文引用腳註\n'
+        )
+        with open(report_path, 'w', encoding='utf-8') as rf:
+            rf.write(report_content)
+
+        orig_join = qc_mod.os.path.join
+        with patch.object(qc_mod.os.path, 'join', side_effect=lambda *args: os.path.join(self.test_dir, 'non_existent_gt.json') if 'ground_truth_toc.json' in args else orig_join(*args)):
+            passed, missing, cover_status = qc_mod.run_single_qc_pass(report_path)
+            self.assertEqual(cover_status, "PASS")
+            self.assertTrue(passed)
+
+    def test_qc_cover_present_but_not_embedded_fails(self):
+        """測試當 cover.jpg 存在但報告中未內嵌封面標籤時，cover_status 為 FAIL 且 passed_all 為 False"""
+        import importlib.util
+        script_04 = os.path.join(BASE_DIR, 'scripts', '04_qc_check.py')
+        spec_04 = importlib.util.spec_from_file_location('qc_mod', script_04)
+        qc_mod = importlib.util.module_from_spec(spec_04)
+        spec_04.loader.exec_module(qc_mod)
+
+        book_dir = os.path.join(self.test_dir, 'cover_test_fail')
+        os.makedirs(book_dir, exist_ok=True)
+        cover_path = os.path.join(book_dir, 'cover.jpg')
+        with open(cover_path, 'wb') as cf:
+            cf.write(b'\xff\xd8\xff\xe0\x00\x10JFIF')
+
+        report_path = os.path.join(book_dir, 'full_report.md')
+        report_content = (
+            '# 測試書籍\n\n'
+            '## 第一章 核心架構\n'
+            '📌 核心概念：這是測試概念說明。\n'
+            '💡 重點擷取：這是測試細節內容。\n'
+            + ('測試內文字元擴充以符合長度要求。' * 60) + '\n\n'
+            '## 📚 參考文獻與原文引用腳註\n'
+        )
+        with open(report_path, 'w', encoding='utf-8') as rf:
+            rf.write(report_content)
+
+        orig_join = qc_mod.os.path.join
+        with patch.object(qc_mod.os.path, 'join', side_effect=lambda *args: os.path.join(self.test_dir, 'non_existent_gt.json') if 'ground_truth_toc.json' in args else orig_join(*args)):
+            passed, missing, cover_status = qc_mod.run_single_qc_pass(report_path)
+            self.assertEqual(cover_status, "FAIL")
+            self.assertFalse(passed)
+
+    def test_qc_no_cover_skipped(self):
+        """測試當無 cover.jpg 時，cover_status 為 SKIPPED，不影響 passed_all"""
+        import importlib.util
+        script_04 = os.path.join(BASE_DIR, 'scripts', '04_qc_check.py')
+        spec_04 = importlib.util.spec_from_file_location('qc_mod', script_04)
+        qc_mod = importlib.util.module_from_spec(spec_04)
+        spec_04.loader.exec_module(qc_mod)
+
+        book_dir = os.path.join(self.test_dir, 'cover_test_skip')
+        os.makedirs(book_dir, exist_ok=True)
+        report_path = os.path.join(book_dir, 'full_report.md')
+        report_content = (
+            '# 測試書籍\n\n'
+            '## 第一章 核心架構\n'
+            '📌 核心概念：這是測試概念說明。\n'
+            '💡 重點擷取：這是測試細節內容。\n'
+            + ('測試內文字元擴充以符合長度要求。' * 60) + '\n\n'
+            '## 📚 參考文獻與原文引用腳註\n'
+        )
+        with open(report_path, 'w', encoding='utf-8') as rf:
+            rf.write(report_content)
+
+        orig_join = qc_mod.os.path.join
+        with patch.object(qc_mod.os.path, 'join', side_effect=lambda *args: os.path.join(self.test_dir, 'non_existent_gt.json') if 'ground_truth_toc.json' in args else orig_join(*args)):
+            passed, missing, cover_status = qc_mod.run_single_qc_pass(report_path)
+            self.assertEqual(cover_status, "SKIPPED")
+            self.assertTrue(passed)
+
+    def test_cleanup_preserves_cover_jpg(self):
+        """測試 cleanup 邏輯在清理 final 目錄時會保留 cover.jpg 與 .md，並刪除其他暫存檔"""
+        target_final = os.path.join(self.test_dir, 'final_book')
+        os.makedirs(target_final, exist_ok=True)
+
+        cover_file = os.path.join(target_final, 'cover.jpg')
+        md_file = os.path.join(target_final, 'book.md')
+        tmp_file = os.path.join(target_final, 'temp_file.tmp')
+
+        with open(cover_file, 'wb') as f:
+            f.write(b'cover')
+        with open(md_file, 'w', encoding='utf-8') as f:
+            f.write('# Report')
+        with open(tmp_file, 'w', encoding='utf-8') as f:
+            f.write('temp')
+
+        # 模擬 cleanup_temp_files 中的 final 清理邏輯
+        for fname in os.listdir(target_final):
+            if fname.endswith(".md") or fname == "cover.jpg":
+                continue
+            fpath = os.path.join(target_final, fname)
+            if os.path.isfile(fpath):
+                os.remove(fpath)
+            elif os.path.isdir(fpath):
+                shutil.rmtree(fpath)
+
+        self.assertTrue(os.path.exists(cover_file), "cover.jpg 應在清理中被保留")
+        self.assertTrue(os.path.exists(md_file), ".md 報告應被保留")
+        self.assertFalse(os.path.exists(tmp_file), "暫存檔 .tmp 應被刪除")
 
 
 if __name__ == '__main__':

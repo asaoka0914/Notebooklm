@@ -29,16 +29,31 @@ def _normalize(s):
 
 
 def run_single_qc_pass(report_path):
-    """執行單次 QC 比對檢查，回傳 (passed_all, missing_chapters)"""
+    """執行單次 QC 比對檢查，回傳 (passed_all, missing_chapters, cover_status)"""
     failed_path = os.path.join(BASE_DIR, "failed_batches.json")
     if not os.path.exists(report_path):
         print(f"❌ [FAIL] Final report not found at {report_path}")
-        return False, []
+        return False, [], "SKIPPED"
 
     with open(report_path, "r", encoding="utf-8") as f:
         content = f.read()
 
     passed_all = True
+
+    # 0.5 封面圖片完整性檢查
+    print("\n--- 0.5 Book Cover Image Integrity Check ---")
+    cover_jpg_path = os.path.join(os.path.dirname(report_path), "cover.jpg")
+    cover_status = "SKIPPED"
+    if os.path.exists(cover_jpg_path):
+        if '<img' in content and 'alt="書籍封面"' in content:
+            print("✅ [PASS] 封面圖片已正確內嵌於報告中。")
+            cover_status = "PASS"
+        else:
+            print(f"❌ [FAIL] 封面圖片存在於 {cover_jpg_path}，但報告中未偵測到內嵌的封面 img 標籤。")
+            passed_all = False
+            cover_status = "FAIL"
+    else:
+        print("ℹ️ [INFO] 本書無封面圖片 (cover.jpg)，已略過封面檢查。")
 
     # 1. 失敗批次檢查
     if os.path.exists(failed_path):
@@ -150,7 +165,7 @@ def run_single_qc_pass(report_path):
     else:
         print("✅ [PASS] No orphan citations in References.")
 
-    return passed_all, missing_chapters
+    return passed_all, missing_chapters, cover_status
 
 def qc_check():
     parser = argparse.ArgumentParser(description="QC check for assembled book report.")
@@ -180,7 +195,7 @@ def qc_check():
     print("==========================================")
 
     # 執行首次單次 QC
-    passed_all, missing_chapters = run_single_qc_pass(report_path)
+    passed_all, missing_chapters, cover_status = run_single_qc_pass(report_path)
 
     # 若開啟 --auto-backfill 且有缺漏，進入閉環自動補課與 re-check 迴圈 (MAX_RETRY_BATCH = 3)
     if missing_chapters and args.auto_backfill:
@@ -198,11 +213,39 @@ def qc_check():
 
             # 補完重組後，重新執行單次 QC 驗證！
             print(f"\n🔍 [Re-QC Check Pass {retry}] 補課與重組完成，重新驗證報告涵蓋度...")
-            passed_all, missing_chapters = run_single_qc_pass(report_path)
+            passed_all, missing_chapters, cover_status = run_single_qc_pass(report_path)
 
             if passed_all and not missing_chapters:
                 print(f"🎉 [Auto-Backfill Success] 於第 {retry} 次補課後，全書章節 100% 涵蓋且 QC 完全通過！")
                 break
+
+    # EPUB 來源一致性 WARN
+    if cover_status == "SKIPPED":
+        book_local_path = config.get("book_local_path", "")
+        if book_local_path and book_local_path.lower().endswith(".epub") and os.path.exists(book_local_path):
+            try:
+                import zipfile
+                import xml.etree.ElementTree as ET
+                with zipfile.ZipFile(book_local_path, 'r') as z:
+                    try:
+                        container_data = z.read('META-INF/container.xml')
+                        root = ET.fromstring(container_data)
+                        rootfile_path = root.find('.//{urn:oasis:names:tc:opendocument:xmlns:container}rootfile').attrib['full-path']
+                    except Exception:
+                        rootfile_path = 'OEBPS/content.opf'
+                    opf_data = z.read(rootfile_path)
+                    opf_root = ET.fromstring(opf_data)
+                    manifest = opf_root.find('.//{http://www.idpf.org/2007/opf}manifest')
+                    if manifest is not None:
+                        for item in manifest.findall('{http://www.idpf.org/2007/opf}item'):
+                            props = item.attrib.get('properties', '').lower()
+                            item_id = item.attrib.get('id', '').lower()
+                            href = item.attrib.get('href', '').lower()
+                            if ('cover-image' in props or 'cover' in item_id) and any(href.endswith(ext) for ext in ('.jpg', '.jpeg', '.png')):
+                                print(f"⚠️ [WARN] 原始 EPUB 含有封面圖片，但 final/cover.jpg 未提取。建議重新執行 01_init_notebook.py 提取封面。")
+                                break
+            except Exception:
+                pass
 
     print("\n==========================================")
     qc_status_path = os.path.join(BASE_DIR, "qc_status.json")
@@ -211,7 +254,8 @@ def qc_check():
             json.dump({
                 "passed_all": bool(passed_all and not missing_chapters),
                 "book_title": book_title,
-                "report_path": report_path
+                "report_path": report_path,
+                "cover_check": cover_status
             }, qf, ensure_ascii=False, indent=2)
     except Exception as e:
         print(f"Warning: Failed to write qc_status.json: {e}")
@@ -241,18 +285,19 @@ def qc_check():
                 except Exception as e:
                     print(f"Notice: Failed to clean raw_outputs: {e}")
 
-            # 清理 final 子目錄中除了目標 .md 以外的中間檔
+            # 清理 final 子目錄中除了目標 .md 與 cover.jpg 以外的中間檔
             target_final = os.path.join(BASE_DIR, "final", clean_title)
             if os.path.exists(target_final) and os.path.isdir(target_final):
                 try:
                     for fname in os.listdir(target_final):
-                        if not fname.endswith(".md"):
-                            fpath = os.path.join(target_final, fname)
-                            if os.path.isfile(fpath):
-                                os.remove(fpath)
-                            elif os.path.isdir(fpath):
-                                shutil.rmtree(fpath)
-                            cleaned_any = True
+                        if fname.endswith(".md") or fname == "cover.jpg":
+                            continue
+                        fpath = os.path.join(target_final, fname)
+                        if os.path.isfile(fpath):
+                            os.remove(fpath)
+                        elif os.path.isdir(fpath):
+                            shutil.rmtree(fpath)
+                        cleaned_any = True
                     print(f"🧹 已成功清理 final/{clean_title} 中的中間暫存圖片與非 md 檔案")
                 except Exception as e:
                     print(f"Notice: Failed to clean final intermediate files: {e}")
