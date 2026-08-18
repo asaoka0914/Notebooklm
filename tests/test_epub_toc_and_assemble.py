@@ -1,6 +1,8 @@
 import unittest
+from unittest.mock import patch
 import os
 import sys
+import json
 import tempfile
 import zipfile
 import shutil
@@ -269,8 +271,37 @@ class TestEPUBTOCAndAssemble(unittest.TestCase):
 
         hb_report = os.path.join(BASE_DIR, "final", "哈利·布朗的永久投資組合", "哈利·布朗的永久投資組合.md")
         if os.path.exists(hb_report):
-            passed, missing = qc_module.run_single_qc_pass(hb_report)
-            self.assertEqual(len(missing), 0, "簡體 GT TOC 與繁體報告比對應涵蓋全部 18 章節（0 遺漏）")
+            hb_gt_json = {
+                "total_chapters": 18,
+                "chapters": [
+                    "第一章 什么是永久投资组合：黄金大幕展开",
+                    "第二章 黄金法则之金融安全：黄金法则与不确定性",
+                    "第三章 永久投资组合业绩测试理论",
+                    "第四章 简单、安全与稳定：通向成功的3个要素",
+                    "第五章 根据经济状况投资：分散化的假象",
+                    "第六章 股票：股票市场的力量",
+                    "第七章 债券：债券安全性和收益",
+                    "第八章 现金：被遗忘的资产",
+                    "第九章 黄金：永久投资组合的保险",
+                    "第十章 实施永久投资组合：达到安全的多种方法",
+                    "第十一章 投资组合的调整和维护",
+                    "第十二章 在国际上实施永久投资组合",
+                    "第十三章 税与投资",
+                    "第十四章 机构多元化",
+                    "第十五章 地域多元化",
+                    "第十六章 可变投资组合",
+                    "第十七章 永久投资组合基金",
+                    "第十八章 总结"
+                ]
+            }
+            temp_gt_path = os.path.join(self.test_dir, 'gt_hb.json')
+            with open(temp_gt_path, 'w', encoding='utf-8') as f:
+                json.dump(hb_gt_json, f, ensure_ascii=False)
+
+            orig_join = qc_module.os.path.join
+            with patch.object(qc_module.os.path, 'join', side_effect=lambda *args: temp_gt_path if 'ground_truth_toc.json' in args else orig_join(*args)):
+                passed, missing = qc_module.run_single_qc_pass(hb_report)
+                self.assertEqual(len(missing), 0, "簡體 GT TOC 與繁體報告比對應涵蓋全部 18 章節（0 遺漏）")
 
 
 if __name__ == '__main__':

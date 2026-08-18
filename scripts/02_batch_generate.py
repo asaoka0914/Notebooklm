@@ -53,32 +53,26 @@ def extract_summary(previous_batch_json):
     except Exception:
         return ""
 
-from _auth_utils import ensure_auth, is_auth_error, get_profile_metadata
+from _auth_utils import ensure_auth, is_auth_error, switch_google_account_interactive
 
 def wait_for_account_switch(timeout_sec=300):
     """
-    當遇 RESOURCE_EXHAUSTED 限流時，阻塞式輪詢等待使用者完成 Google 帳號切換。
-    具體監控指標：Profile 檔案 mtime 與 session_id 變更，且 check_auth(live=True) 通過。
+    當遇 RESOURCE_EXHAUSTED 限流時，主動彈出 Chrome 帳號身分選單，
+    讓使用者立即選擇並切換至另一個 Google 帳號完成認證，無需切去別的 Terminal 手動登入。
     """
-    old_session, old_mtime = get_profile_metadata()
     print("\n" + "="*70)
     print("⚠️ [Quota Limit Alert] 當前 Google 帳號 NotebookLM 今日配額已達上限！")
-    print("👉 請在 Terminal 執行 `python -c \"from notebooklm_tools.cli.main import app; app(['login', '--clear', '--force'])\"` 登入新帳號。")
-    print(f"⏳ 進入阻塞輪詢等待中 (最長 {timeout_sec} 秒)...")
     print("="*70 + "\n")
 
-    start_time = time.time()
-    while time.time() - start_time < timeout_sec:
-        time.sleep(5)
-        curr_session, curr_mtime = get_profile_metadata()
-        if (curr_session and curr_session != old_session) or (curr_mtime and curr_mtime > old_mtime):
-            # 檢查新 token 是否有效
-            from notebooklm_tools.core.auth import check_auth
-            res = check_auth(profile='default', live=True)
-            if getattr(res, 'valid', False):
-                print("🎉 [Account Switched] 檢測到新帳號憑證已生效！自動 Resume 重試當前批次...")
-                return True
-    print("❌ 輪詢逾時，使用者未於時間內切換新帳號。")
+    if switch_google_account_interactive(timeout_sec=60):
+        from notebooklm_tools.core.auth import check_auth
+        res = check_auth(profile='default', live=True)
+        if getattr(res, 'valid', False):
+            print("🎉 [Account Switched] 新帳號憑證已生效！自動 Resume 重試當前批次...")
+            return True
+        print("⚠️ 已切換但新憑證仍未通過驗證，請確認選的帳號確實有該筆記本存取權限且未被限流。")
+
+    print("❌ 帳號切換未完成。也可手動執行 `python -c \"from notebooklm_tools.cli.main import app; app(['login', '--clear', '--force'])\"` 作為備用。")
     return False
 
 def run_query_via_cli(notebook_id, prompt, timeout_sec=300):
