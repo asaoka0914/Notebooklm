@@ -157,17 +157,23 @@ original_ref: [[raw/articles/zh/slug|查看完整章節重點精華]]
 
 ### 階段二：本地端 Agent 協作協議與 SKILL 定義
 
-1. **[MODIFY] 更新 SKILL.md (全域 ~/.gemini/config/skills/book-reader/SKILL.md)**：
+1. **[MODIFY] 更新 SKILL.md**：
    - 明確定義 Agent 接手後的 5 大任務：
-     1. 生成英文 slug。
+     1. 生成標準英文 kebab-case slug（使用安全字元轉換，避免標點正則錯誤）。
      2. 檢查並寫入兩份檔案（詳細版至 raw/articles/zh/，摘要版至 wiki/summaries/）。
-     3. 檢索 wiki/concepts/：更新舊概念頁雙向連結、新建尚未存在的核心概念筆記。
+     3. **檢索與維護 wiki/concepts/（防覆蓋核心機制）**：
+        - 建立任何概念前，必須先檢查 `wiki/concepts/` 資料夾下是否已存在同名或同義概念頁。
+        - **若已存在**：**嚴禁覆蓋現有概念筆記**！僅需在該既有概念頁的關聯/來源區塊追加引用鏈結（如 `[[raw/articles/zh/slug|《書名》]]`）。
+        - **若不存在**：才依照標準 Concept 結構建立全新概念筆記。
      4. 更新 index.md（依書籍領域歸類）。
-     5. 追加 log.md（格式：- [HH:MM] 匯入書籍《書名》 (via: book-reader)）。
+     5. 追加 log.md（格式：`- [HH:MM] 匯入書籍《書名》 (via: book-reader)`）。
+     6. **清理暫存檔**：確認所有成果成功歸檔後，執行清理 `raw_outputs/[書名]/` 下的中間 batch JSON 檔案。
+
 2. **[MODIFY] 防錯 Guardrails 強化**：
    - 嚴禁 Agent 手動全文讀取上萬字的詳細報告重寫摘要（避免浪費 Context）。
    - Agent 僅需讀取 temp_book_summary.md（約 1,500 字）即可精準完成概念關聯與歸檔。
-   - **新增（修正）：明確區分「檔案複製/移動」與「讀入 Context」是兩回事**。S2_2 「將詳細重點精華歸檔至 raw/articles/zh/slug.md」一步，指的是在檔案系統層級進行複製/重新命名（例如呼叫 `shutil.copy`/`move` 或對應的檔案工具），**絕對不需要**將十幾萬字的詳細報告全文讀進 Agent 的 Context Window 再輸出一遍。若 Agent 錯手將此步驟誤解為「讀入後重新生成」，將直接違反本計畫節省 Token 的初衷，須在 SKILL.md 中明文禁止。
+   - **明確區分「檔案複製/移動」與「讀入 Context」是兩回事**。S2_2 「將詳細重點精華歸檔至 raw/articles/zh/slug.md」一步，指的是在檔案系統層級進行複製/重新命名（例如呼叫 `03_assemble_report.prepend_article_frontmatter()` 或檔案串流操作），**絕對不需要**將十幾萬字的詳細報告全文讀進 Agent 的 Context Window 再輸出一遍。
+   - **QC 閉環標準指令**：執行 QC 時一律使用 `python scripts/04_qc_check.py --auto-backfill`，確保缺漏自動補課重組並寫入 `passed_all: true`。
 
     - **舊版自動複製路徑相容說明（重要）**：`03_assemble_report.py` 內建自動複製至 `BoBo-wiki/raw/{短書名}_讀書報告.md` 僅作為歷史版本相容保留。**本次升級之正式產出位置一律為階段二 Agent 執行之雙檔分流**：
       1. 詳細正文精華：`raw/articles/zh/[slug].md`

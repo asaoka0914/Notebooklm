@@ -39,7 +39,7 @@ def run_backfill(missing_chapters, notebook_id=None, book_title=None):
     print(f"🚀 啟動自動補課流程 (Backfill) — 缺漏 {len(missing_chapters)} 章節")
     print(f"==========================================")
 
-    from _auth_utils import ensure_auth
+    from _auth_utils import ensure_auth_with_pool
     import importlib.util
     
     gen_path = os.path.join(BASE_DIR, "scripts", "02_batch_generate.py")
@@ -48,7 +48,7 @@ def run_backfill(missing_chapters, notebook_id=None, book_title=None):
     spec_g.loader.exec_module(gen_mod)
     run_query_via_cli = gen_mod.run_query_via_cli
 
-    ensure_auth()
+    ensure_auth_with_pool()
 
     for idx, chap_name in enumerate(missing_chapters, start=1):
         print(f"\n[Backfill {idx}/{len(missing_chapters)}] 補跑章節：{chap_name}...")

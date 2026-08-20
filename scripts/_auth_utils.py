@@ -232,3 +232,18 @@ def get_profile_metadata():
         return session_id, mtime
     except Exception:
         return "", 0
+
+def ensure_auth_with_pool() -> bool:
+    """
+    優先嘗試使用帳號池 (_auth_pool.ensure_auth_pool())，
+    若 auth_pool/pool_config.yaml 不存在或執行失敗，自動 fallback 至原本的 ensure_auth()。
+    """
+    from pathlib import Path
+    pool_config = Path(__file__).resolve().parent.parent / "auth_pool" / "pool_config.yaml"
+    if pool_config.exists():
+        try:
+            from _auth_pool import ensure_auth_pool
+            return ensure_auth_pool()
+        except Exception as e:
+            print(f"⚠️ auth_pool 啟動失敗 ({e})，切回單帳號模式...")
+    return ensure_auth()

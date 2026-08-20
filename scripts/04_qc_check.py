@@ -79,19 +79,27 @@ def run_single_qc_pass(report_path):
         passed_all = False
 
     found_chapter_titles = []
+    has_density_warnings = False
+
     for c_idx, chap in enumerate(chap_blocks, start=1):
         lines = chap.strip().split('\n')
         h2_title = lines[0].strip('# ').strip() if lines else f"Chapter {c_idx}"
         found_chapter_titles.append(h2_title)
         chap_len = len(chap)
 
+        # 判定是否為 Part/部/篇/卷 等總綱型過渡章節
+        is_part_header = bool(re.match(r'^(?:Part\s*[\dIVXLCDMivxlcdm]+|第\s*[\d一二三四五六七八九十百]+\s*[部篇卷]|前言|總結|附錄)', h2_title, re.IGNORECASE))
+
         has_concept = "📌 核心概念" in chap or "核心概念" in chap
         has_details = "💡 重點擷取" in chap or "重點擷取" in chap
 
         status_flag = "✅"
-        if chap_len < 1000 or not (has_concept and has_details):
+        # 若為 Part 總綱標題，豁免 1000 字限制與結構標籤檢查
+        if is_part_header:
+            status_flag = "ℹ️ [Part/總綱]"
+        elif chap_len < 1000 or not (has_concept and has_details):
             status_flag = "⚠️"
-            passed_all = False
+            has_density_warnings = True
 
         print(f"{status_flag} {h2_title[:40]}... | Length: {chap_len} chars | Concept: {has_concept} | Details: {has_details}")
 

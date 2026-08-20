@@ -1,0 +1,14 @@
+version: 1
+strategy: round_robin       # 輪換策略：round_robin | least_used | cooldown_first
+cooldown_minutes: 30
+accounts:
+  - id: asaoka0914_gmail
+    email: asaoka0914@gmail.com   # 主鍵，不依賴 Profile 目錄名稱
+    token_file: tokens/asaoka0914_gmail.json
+    enabled: true
+    note: "個人主帳號"
+  - id: gwa20080808_gmail
+    email: gwa20080808@gmail.com
+    token_file: tokens/gwa20080808_gmail.json
+    enabled: true
+    note: "個人備用帳號"

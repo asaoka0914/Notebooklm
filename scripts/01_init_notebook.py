@@ -205,12 +205,12 @@ def _parse_toc_response(raw_gt):
             chapters.append(line_str)
     return chapters
 
-from _auth_utils import ensure_auth
+from _auth_utils import ensure_auth_with_pool
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 def init_notebook():
-    if not ensure_auth():
+    if not ensure_auth_with_pool():
         sys.exit(1)
     parser = argparse.ArgumentParser(description="Initialize NotebookLM source rules & local cover.")
     parser.add_argument("--notebook-id", help="NotebookLM notebook ID")

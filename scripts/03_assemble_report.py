@@ -14,10 +14,17 @@ def remove_checklist_sections(text):
     cleaned = re.sub(pattern, '', text, flags=re.DOTALL)
     return cleaned
 
+def clean_ai_preamble(text):
+    """剔除 NotebookLM 開頭常見的 AI 對話導語 (Meta-text)"""
+    # 匹配開頭的「以下為您...」、「好的，為您整理...」、「極度詳細導讀報告」等
+    cleaned = re.sub(r'^(?:\s*好的[，,、]?\s*|\s*以下[為是]?\s*|\s*根據您[的所]?\s*|\s*為您[撰整]?\s*|\s*這是一份\s*).*?(?=(?:\n#{1,6}\s*|\n\n|\Z))', '', text, flags=re.DOTALL | re.IGNORECASE)
+    cleaned = re.sub(r'^\s*.*?(?:極度詳細導讀報告|章節重點精華|導讀報告).*?(?=(?:\n#{1,6}\s*|\n\n|\Z))', '', cleaned, flags=re.DOTALL | re.IGNORECASE)
+    return cleaned.strip()
+
 def normalize_headings(text):
     """
     標題階層正規化：
-    - 章節標題（如 第一章、CHAPTER 1）-> H2 (##)
+    - 章節與部/篇總綱標題（如 Part 1, 第一部, 第一章, CHAPTER 1, 3-7 保險規畫）-> H2 (##)
     - 章節內子結構（如 1.1, 📌 核心概念, 💡 重點擷取）-> H3 (###)
     - 其它非標題行的 # 開頭移除
     """
@@ -26,18 +33,18 @@ def normalize_headings(text):
     
     for line in lines:
         stripped = line.strip()
-        # 1. 識別章節大標題 (如：#### 洞察市場真實面... 或 #### 第 1 章：... 或 #### 第一夜：... 或 #### CHAPTER 1... 或 #### 1 理財要分身有術)
-        if re.match(r'^(?:#{1,6}\s*)?(?:洞察市場真實面|第\s*\d+\s*[章堂課講篇夜卷節]|第[一二三四五六七八九十百]+\s*[章堂課講篇夜卷節]|CHAPTER\s*\d+|Lesson\s*\d+|Unit\s*\d+|前言|總結|附錄)', stripped, re.IGNORECASE):
-            clean_title = re.sub(r'^#{1,6}\s*', '', stripped)
-            norm_lines.append(f"\n## {clean_title}\n")
-        # 匹配 "純數字 + 空格 + 中文標題/引號" 格式（如：#### 1 理財要分身有術、#### 14 「愛」是所有財富的種子）
-        elif re.match(r'^(?:#{1,6}\s*)?\d+\s*(?:[「『"\'“”])?\s*[\u4e00-\u9fa5a-zA-Z]', stripped):
+        # 1. 識別章節與部/篇大標題 (如：Part 1, Part I, 第一部, #### 第 1 章：..., #### 第一夜：..., #### CHAPTER 1...)
+        if re.match(r'^(?:#{1,6}\s*)?(?:Part\s*[\dIVXLCDMivxlcdm]+|第\s*[\d一二三四五六七八九十百]+\s*[部篇卷章堂課講夜節]|洞察市場真實面|CHAPTER\s*\d+|Lesson\s*\d+|Unit\s*\d+|前言|總結|附錄)', stripped, re.IGNORECASE):
             clean_title = re.sub(r'^#{1,6}\s*', '', stripped)
             norm_lines.append(f"\n## {clean_title}\n")
         # 2. 識別子結構 (如：##### 1.1 ..., 📌 核心概念, 💡 重點擷取)
         elif re.match(r'^(?:#{1,6}\s*)?(?:\d+\.\d+|📌|💡|核心概念|重點擷取)', stripped):
             clean_subtitle = re.sub(r'^#{1,6}\s*', '', stripped)
             norm_lines.append(f"\n### {clean_subtitle}\n")
+        # 3. 匹配 "純數字/序號（如 3-7 或 14）+ 空格/符號 + 中文標題/引號" 格式（如：#### 3-7 保險規畫──美國篇、#### 1 理財要分身有術）
+        elif re.match(r'^(?:#{1,6}\s*)?\d+(?:[-–—]\d+)?\s*(?:[「『"\'“”])?\s*[\u4e00-\u9fa5a-zA-Z]', stripped):
+            clean_title = re.sub(r'^#{1,6}\s*', '', stripped)
+            norm_lines.append(f"\n## {clean_title}\n")
         else:
             norm_lines.append(line)
             
@@ -203,7 +210,9 @@ def assemble_report_core(book_title: str = None):
                 })
                 global_citation_counter += 1
 
-    # 第二階段：內容過濾（剔除檢查清單）、標題正規化與腳註重映射
+    seen_h2_titles = set()
+
+    # 第二階段：內容過濾（剔除檢查清單、AI導語）、標題正規化、去重與腳註重映射
     for b_idx, b_file in enumerate(batch_files, start=1):
         fpath = os.path.join(raw_dir, b_file)
         with open(fpath, "r", encoding="utf-8") as rf:
@@ -212,15 +221,38 @@ def assemble_report_core(book_title: str = None):
         answer = data.get("answer", "")
         # 1. 剔除涵蓋度自我檢查清單
         clean_answer = remove_checklist_sections(answer)
-        # 2. 清理禁止詞
+        # 2. 剔除開頭 AI 廢話導語
+        clean_answer = clean_ai_preamble(clean_answer)
+        # 3. 清理禁止詞
         clean_answer = clean_forbidden_phrases(clean_answer)
-        # 3. 標題正規化
+        # 4. 標題正規化
         norm_answer = normalize_headings(clean_answer)
-        # 4. 腳註重編號
-        remapped_answer = parse_citations(norm_answer, citation_map, b_idx)
+        # 5. 跨批次章節標題去重（若同一章節被前後批次重複生成）
+        filtered_blocks = []
+        # 按 H2 標題分割區塊
+        h2_splits = re.split(r'\n(?=##\s+)', norm_answer)
+        for block in h2_splits:
+            if not block.strip():
+                continue
+            lines = block.strip().split('\n')
+            if lines and lines[0].startswith('## '):
+                # 正規化標題文字進行查重
+                raw_h2 = lines[0].replace('##', '').strip()
+                norm_h2_key = re.sub(r'[\s:："\u2018\u2019\u201c\u201d\'\.,;!?、《》【】「」()\(\)]', '', raw_h2)
+                if norm_h2_key in seen_h2_titles:
+                    print(f"ℹ️ [Deduplicate] 發現跨批次重複章節標題，已自動去重：{raw_h2}")
+                    continue
+                seen_h2_titles.add(norm_h2_key)
+            filtered_blocks.append(block)
+            
+        deduped_answer = '\n\n'.join(filtered_blocks)
+
+        # 6. 腳註重編號
+        remapped_answer = parse_citations(deduped_answer, citation_map, b_idx)
         
-        full_markdown_parts.append(remapped_answer)
-        full_markdown_parts.append("\n\n---\n")
+        if remapped_answer.strip():
+            full_markdown_parts.append(remapped_answer)
+            full_markdown_parts.append("\n\n---\n")
 
     # 第三階段：附錄 References 區塊生成（若有）
     if references_list:

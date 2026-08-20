@@ -1,19 +1,22 @@
 # Handoff (交接紀錄)
 
-- **最後更新時間**: 2026-08-20 14:43
+- **最後更新時間**: 2026-08-20 17:30
 - **最後操作裝置**: 家裡電腦 (AsaokaHTPC)
-- **當前狀態**: 🟢 Notebooklm / book-reader v5.0.10 故障分析與全面閉環修復完成（全套 25 項單元測試 100% 通過、全域技能已同步）
+- **當前狀態**: 🟢 多 Profile 預認證帳號池（Multi-Profile Auth Pool）實作、單元測試（31 項測試 100% 通過）與全域技能同步完成。
 - **目前做到哪**: 
-  - **新書切換狀態重置**：`01_init_notebook.py` 自動檢測書名變更，切換新書時主動清除舊書的 `ground_truth_toc.json` 與 `qc_status.json`，並清空舊批次以觸發重新分組。
-  - **自動批次策略注入**：`01_init_notebook.py` 在儲存目錄後，自動以每 2 章一組生成 `batch_strategy.batches` 並回寫 `book_config.yaml`。
-  - **空批次防偽成功**：`02_batch_generate.py` 若讀到空 batches 會立即印出錯誤提示並 Hard-Fail，不再誤報完成。
-  - **純數字與引號標題正規化**：`03_assemble_report.py` 強化正則匹配，支援 `1 理財要分身有術` 及 `14 「愛」是所有財富的種子` 等帶引號格式正規化為 H2。
-  - **SKILL.md 規範補充**：補充 Step 0 雲端來源上傳核對與自動狀態清理說明。
-  - **單元測試閉環**：全套 25 項單元測試 100% 通過。
-  - **全域技能同步**：已執行 `install.ps1` 同步更新至 Gemini (`~/.gemini/config/skills/book-reader`) 與 Claude (`~/.claude/skills/book-reader`) 目錄。
+  - **多 Profile 預認證帳號池 (`_auth_pool.py`)**：
+    - 建立 `auth_pool/pool_config.yaml`，以 `email` 為主鍵，直接納入個人主帳號 (`asaoka0914@gmail.com`) 與個人備用帳號 (`gwa20080808@gmail.com`)。
+    - 實作 Email 動態比對本機 Chrome Profile 目錄、Round-Robin / Least-Used 輪換機制與 30 分鐘冷卻狀態管理。
+    - `.gitignore` 排除本機暫存 Token 與 `pool_status.json`，實現跨電腦免 GDrive 同步直接使用。
+  - **腳本與橋接整合**：
+    - 於 `_auth_utils.py` 新增 `ensure_auth_with_pool()` 橋接函式，向後相容 fallback 機制。
+    - 全面替換 `01_init_notebook.py`、`02_batch_generate.py`、`05_backfill.py`、`06_generate_book_summary.py` 之認證呼叫。
+    - `02_batch_generate.py` 遇 `RESOURCE_EXHAUSTED` 限流時，優先自動輪換帳號池下一個可用身分並 Resume 執行。
+  - **測試與修復**：
+    - 新增 `tests/test_auth_pool.py` 單元測試。
+    - 修復 `03_assemble_report.py` 之小標題與大標題正則優先順序，全套 31 項測試 100% 通過。
+  - **全域技能同步**：
+    - 執行 `install.ps1` 同步更新至 Gemini (`~/.gemini/config/skills/book-reader`) 與 Claude (`~/.claude/skills/book-reader`) 目錄。
 - **下一次開工建議**: 
-  - 處理新書籍時，只需在 NotebookLM 網頁上傳書籍來源，並在 `config/book_config.yaml` 填入 `notebook_id`、`book_title` 與 `book_local_path`，即可直接依序執行 `01 → 02 → 03 → 04 → 06`。
-
-
-
-
+  - 處理新書籍時，直接執行 `python scripts/01_init_notebook.py ...`，帳號池將自動依本機 Chrome 登入身分 headless 取得 Token，無需手動選擇。
+  - 如需檢視或調整帳號池狀態，可直接執行 `python scripts/_auth_pool.py` 或編輯 `auth_pool/pool_config.yaml`。

@@ -53,17 +53,35 @@ def extract_summary(previous_batch_json):
     except Exception:
         return ""
 
-from _auth_utils import ensure_auth, is_auth_error, switch_google_account_interactive
+from _auth_utils import ensure_auth_with_pool, is_auth_error, switch_google_account_interactive
 
 def wait_for_account_switch(timeout_sec=300):
     """
-    當遇 RESOURCE_EXHAUSTED 限流時，主動彈出 Chrome 帳號身分選單，
-    讓使用者立即選擇並切換至另一個 Google 帳號完成認證，無需切去別的 Terminal 手動登入。
+    當遇 RESOURCE_EXHAUSTED 限流時，優先透過帳號池自動輪換下一個帳號；
+    若帳號池無可用帳號，再彈出 Chrome 帳號身分選單讓使用者選擇。
     """
     print("\n" + "="*70)
     print("⚠️ [Quota Limit Alert] 當前 Google 帳號 NotebookLM 今日配額已達上限！")
     print("="*70 + "\n")
 
+    # 1. 嘗試透過帳號池自動輪換
+    try:
+        from _auth_pool import load_pool_config, get_or_init_status, rotate_account, fetch_token_headless
+        config = load_pool_config()
+        if config and config.get("accounts"):
+            pool_status = get_or_init_status()
+            print("🔄 正在嘗試自動輪換至帳號池中的下一個可用個人帳號...")
+            next_acc = rotate_account(pool_status, config)
+            if next_acc and fetch_token_headless(next_acc):
+                from notebooklm_tools.core.auth import check_auth
+                res = check_auth(profile='default', live=True)
+                if getattr(res, 'valid', False):
+                    print(f"🎉 [Account Rotated] 已自動切換至帳號池身分 [{next_acc['id']}]！自動 Resume 重試...")
+                    return True
+    except Exception as e:
+        print(f"⚠️ 自動輪換帳號池失敗 ({e})，切換為手動選擇...")
+
+    # 2. 互動式手動切換
     if switch_google_account_interactive(timeout_sec=60):
         from notebooklm_tools.core.auth import check_auth
         res = check_auth(profile='default', live=True)
@@ -103,7 +121,7 @@ def run_query_via_cli(notebook_id, prompt, timeout_sec=300):
                 return None
             elif is_auth_error(e):
                 print(f"⚠️ 檢測到執行中途 Token 旋轉/失效 ({err_msg[:100]})，嘗試中途自動恢復...")
-                if ensure_auth():
+                if ensure_auth_with_pool():
                     # 關鍵：強制重新載入 profile 並建立新 Client 物件
                     auth = AuthManager()
                     profile = auth.load_profile()

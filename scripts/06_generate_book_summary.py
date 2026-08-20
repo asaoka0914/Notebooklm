@@ -14,7 +14,7 @@ spec_02 = importlib.util.spec_from_file_location('module_02', os.path.join(BASE_
 module_02 = importlib.util.module_from_spec(spec_02)
 spec_02.loader.exec_module(module_02)
 run_query_via_cli = module_02.run_query_via_cli
-from _auth_utils import ensure_auth
+from _auth_utils import ensure_auth_with_pool
 
 def build_book_summary_prompt(book_title, author=''):
     p = []
@@ -117,7 +117,7 @@ def generate_book_summary(notebook_id=None, book_title=None, author=''):
     if not check_qc_prerequisite(book_title):
         return False
 
-    ensure_auth()
+    ensure_auth_with_pool()
     prompt = build_book_summary_prompt(book_title, author)
     print(f'\n🚀 [Step 06] 正在向 NotebookLM 請求生成《{book_title}》的標準 6 模組全書深度摘要...')
     res = run_query_via_cli(notebook_id, prompt, timeout_sec=300)

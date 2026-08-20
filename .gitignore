@@ -52,3 +52,7 @@ old data/
 *.tar.gz
 node_modules/
 
+# Auth Pool Token（一次性 Session Token，本機暫存，不推送）
+auth_pool/tokens/
+auth_pool/pool_status.json
+
