@@ -173,6 +173,12 @@ original_ref: [[raw/articles/zh/slug|查看完整章節重點精華]]
       1. 詳細正文精華：`raw/articles/zh/[slug].md`
       2. 6 模組深度摘要：`wiki/summaries/[slug]-summary.md`
       Agent 接手歸檔時請務必遵循上述雙檔路徑，勿將歷史路徑誤認為正式目標。
+
+3. **[重要前置與自動防護機制]**：
+   - **Step 0 來源完整性**：執行前務必確認 NotebookLM 雲端筆記本中已手動上傳目標書籍（EPUB/PDF），避免模型無文本可提煉。
+   - **帳號權限核對**：若 `nlm notebook list` 或存取報錯 403，請確認當前登入之 Chrome 身分具備該筆記本權限，或使用 `nlm login --clear` 切換。
+   - **新書自動重置**：`01_init_notebook.py` 偵測到更換新書時，會自動清空舊的 `ground_truth_toc.json`、`qc_status.json` 與批次設定，並自動以每 2 章一組重新產生 `batch_strategy.batches`。
+   - **空批次防護**：`02_batch_generate.py` 若遇空批次會立即 Hard-Fail 並提示執行 01，嚴禁偽成功。
 ---
 
 ## 📊 預期效益與驗證標準

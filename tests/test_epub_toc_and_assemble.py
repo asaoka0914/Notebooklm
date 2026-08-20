@@ -192,6 +192,46 @@ class TestEPUBTOCAndAssemble(unittest.TestCase):
         self.assertIn("Lesson 3: Advanced Tactics", chapters)
         self.assertIn("第一講：投資心態", chapters)
 
+    def test_extract_epub_toc_numbered_and_lesson_markers(self):
+        # 測試純數字與「堂、課」標記（如《華爾街操盤手給年輕人的15堂理財課》之 "1 理財要分身有術" 與 "第1堂課"）
+        epub_path = os.path.join(self.test_dir, 'numbered_toc.epub')
+        toc_content = """<?xml version="1.0" encoding="utf-8"?>
+        <html xmlns="http://www.w3.org/1999/xhtml">
+        <body>
+            <nav>
+                <ol>
+                    <li><a href="c1.xhtml">1 理財要分身有術</a></li>
+                    <li><a href="c2.xhtml">2 股票市場的本質</a></li>
+                    <li><a href="c3.xhtml">第 3 堂 建立投資組合</a></li>
+                </ol>
+            </nav>
+        </body>
+        </html>
+        """
+        with zipfile.ZipFile(epub_path, 'w') as z:
+            z.writestr('OEBPS/toc.xhtml', toc_content)
+
+        chapters = self.init_module.extract_epub_toc(epub_path)
+        self.assertEqual(len(chapters), 3)
+        self.assertIn("1 理財要分身有術", chapters)
+        self.assertIn("2 股票市場的本質", chapters)
+        self.assertIn("第 3 堂 建立投資組合", chapters)
+
+    def test_normalize_headings_numbered_and_lessons(self):
+        # 測試 03 normalize_headings 針對 H4 純數字標題與第X堂課能正確晉升為 H2 (##)
+        raw_text = (
+            "#### 1 理財要分身有術\n"
+            "內文段落...\n"
+            "##### 1.1 核心概念\n"
+            "子結構...\n"
+            "#### 第 2 堂課 投資入門\n"
+            "第二堂內文..."
+        )
+        normalized = self.asm_module.normalize_headings(raw_text)
+        self.assertIn("## 1 理財要分身有術", normalized)
+        self.assertIn("### 1.1 核心概念", normalized)
+        self.assertIn("## 第 2 堂課 投資入門", normalized)
+
 
     def test_normalize_with_opencc_and_fallback(self):
         # 載入 04_qc_check 模組

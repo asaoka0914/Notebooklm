@@ -70,12 +70,19 @@ def _is_frontmatter(text: str) -> bool:
 
 CHAPTER_MARKERS = (
     "章", "Chapter", "chapter", "篇", "Part", "part", "PART",
-    "Unit", "unit", "Lesson", "lesson", "法則", "夜", "卷", "節", "讲", "講"
+    "Unit", "unit", "Lesson", "lesson", "法則", "夜", "卷", "節", "讲", "講", "堂", "課", "课"
 )
 
 def _is_chapter_candidate(text: str) -> bool:
-    has_marker = any(marker in text for marker in CHAPTER_MARKERS)
-    return bool(text) and has_marker and not _is_frontmatter(text)
+    if not text or _is_frontmatter(text):
+        return False
+    # 1. 包含章節關鍵標記
+    if any(marker in text for marker in CHAPTER_MARKERS):
+        return True
+    # 2. 符合「數字 + 標點/空格 + 標題」格式（如 "1 理財要分身有術", "01. 基礎入門"）
+    if re.match(r'^(?:\d{1,3}|[一二三四五六七八九十百]+)[\s.:：、\-\–][\u4e00-\u9fa5a-zA-Z]', text):
+        return True
+    return False
 
 
 def extract_epub_toc(book_path):
@@ -245,6 +252,28 @@ def init_notebook():
         print("Error: notebook_id is missing in CLI args or config.")
         sys.exit(1)
 
+    # 檢測是否為不同書籍，若更換書名則自動清除舊的 ground_truth_toc 與 qc_status 殘留
+    old_title = config.get("book_title", "")
+    if book_title and old_title and book_title != old_title:
+        print(f"🔄 檢測到新書籍（《{book_title}》vs 舊《{old_title}》），重置舊書狀態快取...")
+        gt_path = os.path.join(BASE_DIR, "config", "ground_truth_toc.json")
+        if os.path.exists(gt_path):
+            try:
+                os.remove(gt_path)
+                print(f"  ✅ 已清除舊目錄基準：{gt_path}")
+            except Exception:
+                pass
+        qc_path = os.path.join(BASE_DIR, "qc_status.json")
+        if os.path.exists(qc_path):
+            try:
+                os.remove(qc_path)
+                print(f"  ✅ 已清除舊 QC 狀態：{qc_path}")
+            except Exception:
+                pass
+        # 若是新書，清空舊的批次配置以觸發重新生成
+        if "batch_strategy" in config:
+            config["batch_strategy"]["batches"] = []
+
     print(f"Initializing Notebook ID: {notebook_id}")
 
     # 解析並儲存 Ground Truth TOC json
@@ -266,6 +295,31 @@ def init_notebook():
         with open(gt_json_path, "w", encoding="utf-8") as gtf:
             json.dump({"total_chapters": len(gt_chapters), "chapters": gt_chapters}, gtf, ensure_ascii=False, indent=2)
         print(f"✅ Ground Truth TOC saved with {len(gt_chapters)} chapters to {gt_json_path}")
+
+        # 自動根據章節清單生成預設批次策略（每 2 章一組），若 config 尚未設定批次則自動注入
+        if "batch_strategy" not in config or not config["batch_strategy"].get("batches"):
+            auto_batches = []
+            for i in range(0, len(gt_chapters), 2):
+                batch_chaps = gt_chapters[i:i+2]
+                auto_batches.append({
+                    "batch": len(auto_batches) + 1,
+                    "chapters": batch_chaps
+                })
+            if "batch_strategy" not in config:
+                config["batch_strategy"] = {}
+            config["batch_strategy"]["batches"] = auto_batches
+            if "batch_delay_seconds" not in config["batch_strategy"]:
+                config["batch_strategy"]["batch_delay_seconds"] = 8
+            
+            # 回寫 config
+            config["notebook_id"] = notebook_id
+            if book_local_path:
+                config["book_local_path"] = book_local_path
+            if book_title:
+                config["book_title"] = book_title
+            with open(config_path, "w", encoding="utf-8") as cwf:
+                yaml.dump(config, cwf, allow_unicode=True, sort_keys=False)
+            print(f"✅ 自動生成 {len(auto_batches)} 個批次策略並更新至 {config_path}")
 
     print("Checking existing sources in notebook...")
     import io

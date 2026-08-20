@@ -59,8 +59,18 @@ def _select_chrome_profile_interactive():
         print(f"  [{i}] {p['email']}   (Profile 資料夾: {p['dir']} / {p['name']})")
     print("="*70)
 
+    if not sys.stdin.isatty():
+        fallback_profile = profiles[0]['dir']
+        print(f"⚠️ 偵測到非互動式終端環境 (non-interactive)，自動採用預設身分：{fallback_profile}")
+        return fallback_profile
+
     while True:
-        choice = input(f"請輸入編號 (1-{len(profiles)}): ").strip()
+        try:
+            choice = input(f"請輸入編號 (1-{len(profiles)}): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            fallback_profile = profiles[0]['dir']
+            print(f"\n⚠️ 無法取得使用者輸入 (EOF)，自動採用預設身分：{fallback_profile}")
+            return fallback_profile
         if choice.isdigit() and 1 <= int(choice) <= len(profiles):
             selected = profiles[int(choice) - 1]
             print(f"✅ 已選擇身分：{selected['email']} ({selected['dir']})")
@@ -145,8 +155,16 @@ def switch_google_account_interactive(timeout_sec=60):
         print(f"  [{i}] {p['email']}   (Profile 資料夾: {p['dir']} / {p['name']})")
     print("="*70)
 
+    if not sys.stdin.isatty():
+        print("⚠️ 偵測到非互動式終端環境，無法進行互動式帳號切換。")
+        return False
+
     while True:
-        choice = input(f"請輸入編號 (1-{len(profiles)})，或輸入 q 取消: ").strip()
+        try:
+            choice = input(f"請輸入編號 (1-{len(profiles)})，或輸入 q 取消: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n⚠️ 無法取得使用者輸入 (EOF)，已取消切換。")
+            return False
         if choice.lower() == 'q':
             print("已取消切換。")
             return False

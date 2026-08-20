@@ -26,8 +26,12 @@ def normalize_headings(text):
     
     for line in lines:
         stripped = line.strip()
-        # 1. 識別章節大標題 (如：#### 洞察市場真實面... 或 #### 第 1 章：... 或 #### 第一夜：... 或 #### CHAPTER 1...)
-        if re.match(r'^(?:#{1,6}\s*)?(?:洞察市場真實面|第\s*\d+\s*章|第[一二三四五六七八九十]+\s*章|第\d+\s*夜|第[一二三四五六七八九十]+\s*夜|CHAPTER\s*\d+|前言|總結|附錄)', stripped, re.IGNORECASE):
+        # 1. 識別章節大標題 (如：#### 洞察市場真實面... 或 #### 第 1 章：... 或 #### 第一夜：... 或 #### CHAPTER 1... 或 #### 1 理財要分身有術)
+        if re.match(r'^(?:#{1,6}\s*)?(?:洞察市場真實面|第\s*\d+\s*[章堂課講篇夜卷節]|第[一二三四五六七八九十百]+\s*[章堂課講篇夜卷節]|CHAPTER\s*\d+|Lesson\s*\d+|Unit\s*\d+|前言|總結|附錄)', stripped, re.IGNORECASE):
+            clean_title = re.sub(r'^#{1,6}\s*', '', stripped)
+            norm_lines.append(f"\n## {clean_title}\n")
+        # 匹配 "純數字 + 空格 + 中文標題/引號" 格式（如：#### 1 理財要分身有術、#### 14 「愛」是所有財富的種子）
+        elif re.match(r'^(?:#{1,6}\s*)?\d+\s*(?:[「『"\'“”])?\s*[\u4e00-\u9fa5a-zA-Z]', stripped):
             clean_title = re.sub(r'^#{1,6}\s*', '', stripped)
             norm_lines.append(f"\n## {clean_title}\n")
         # 2. 識別子結構 (如：##### 1.1 ..., 📌 核心概念, 💡 重點擷取)
