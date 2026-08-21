@@ -43,6 +43,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1
   - 徹底替換寫死的假健康檢查，`__sync_script.py` 改為自動調用稽核腳本產出真實掃描數據覆寫 `outputs/sync-status.md`。
   - 升級 `SKILL.md` 與 `BoBo-wiki/agents.md`，在 Stage 2 步驟 4「概念關聯」建立強制程式驗收關卡，消除「AI 自我宣告完成」漏洞。
   - **概念雙括號語法防呆加固**：於 `SKILL.md` 模板與 `06_generate_book_summary.py` Prompt 明確強制 `[[english-slug|中文名稱]]` 格式，嚴禁純中文裸連結流入 Vault。
+  - **確立標準概念筆記結構規範 (Concept Schema)**：於 `SKILL.md` 正式訂立 `wiki/concepts/` 結構標準（概念定義、運作機制與核心價值、誤區與邊界、關聯資料），明定 Stage 2 Agent 必須自 Summary 模組二精準提煉機制與價值，杜絕純字串盲目截取。
 - **長篇書籍生成管線健全化 (Rate Limit & Duplication Fixes)**：
   - 於 `02_batch_generate.py` 實作智能滑動視窗限流與連續錯誤指數退避（RateLimiter），全局耗盡時拋出 `RateLimitExhaustedError` 安全退出。
   - 於 `01_init_notebook.py` 實作 `plan_batches()` 防止批次規劃章節範圍重疊，於 `04_qc_check.py` 增加重複章節偵測。
