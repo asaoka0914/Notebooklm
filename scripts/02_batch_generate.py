@@ -8,7 +8,61 @@ import subprocess
 import yaml
 
 # 確保 stdout 為 UTF-8
-sys.stdout.reconfigure(encoding='utf-8')
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+else:
+    sys.stdout.reconfigure(encoding='utf-8')
+
+class RateLimitExhaustedError(Exception):
+    """當所有重試與輪換帳號皆無法解除限流時拋出"""
+    pass
+
+class RateLimiter:
+    """NotebookLM API 智能限流器與指數退避控制器"""
+    def __init__(self, max_requests_per_minute=30, max_consecutive_errors=3, max_pause_seconds=600):
+        self.request_timestamps = []
+        self.max_per_minute = max_requests_per_minute
+        self.consecutive_errors = 0
+        self.max_errors = max_consecutive_errors
+        self.max_pause_seconds = max_pause_seconds
+        self.total_pause_rounds = 0
+        self.max_pause_rounds = 5
+
+    def wait_if_needed(self):
+        """檢查滑動視窗內之請求數，若接近限制則主動等待"""
+        now = time.time()
+        self.request_timestamps = [ts for ts in self.request_timestamps if now - ts < 60]
+        if len(self.request_timestamps) >= self.max_per_minute:
+            wait_time = 60 - (now - self.request_timestamps[0]) + 0.5
+            if wait_time > 0:
+                print(f"  ⏳ 接近 API 限流頻率 ({len(self.request_timestamps)}/{self.max_per_minute} req/min)，等待 {wait_time:.1f} 秒...")
+                time.sleep(wait_time)
+
+    def record_request(self):
+        """記錄一次請求時間戳"""
+        self.request_timestamps.append(time.time())
+
+    def record_success(self):
+        """成功時重置連續錯誤計數器"""
+        self.consecutive_errors = 0
+
+    def record_error_and_backoff(self):
+        """記錄錯誤並執行指數退避"""
+        self.consecutive_errors += 1
+        if self.consecutive_errors >= self.max_errors:
+            backoff_round = self.consecutive_errors - self.max_errors + 1
+            pause_time = min(5 * (2 ** (backoff_round - 1)), self.max_pause_seconds)
+            print(f"  ⚠️ 連續 {self.consecutive_errors} 次請求錯誤，啟動指數退避暫停 {pause_time} 秒...")
+            time.sleep(pause_time)
+            self.total_pause_rounds += 1
+            if self.total_pause_rounds >= self.max_pause_rounds:
+                raise RateLimitExhaustedError(
+                    f"已連續退避 {self.total_pause_rounds} 輪仍失敗，觸發全局中斷保護"
+                )
 
 def is_thinking_fragment(text):
     """檢查是否僅為模型思考片段"""
@@ -93,23 +147,32 @@ def wait_for_account_switch(timeout_sec=300):
     print("❌ 帳號切換未完成。也可手動執行 `python -c \"from notebooklm_tools.cli.main import app; app(['login', '--clear', '--force'])\"` 作為備用。")
     return False
 
-def run_query_via_cli(notebook_id, prompt, timeout_sec=300):
-    """直接調用 notebooklm_tools Python API 執行 query，支援中途 Token 恢復與限流時輪詢等待"""
+def run_query_via_cli(notebook_id, prompt, timeout_sec=300, rate_limiter=None):
+    """直接調用 notebooklm_tools Python API 執行 query，支援中途 Token 恢復、RateLimiter 與限流時輪詢等待"""
     from notebooklm_tools.services.auth import AuthManager
     from notebooklm_tools.core.client import NotebookLMClient
     
     max_retries = 3
     
     for attempt in range(1, max_retries + 1):
+        if rate_limiter:
+            rate_limiter.wait_if_needed()
+            
         auth = AuthManager()
         profile = auth.load_profile()
         client = NotebookLMClient(cookies=profile.cookies, csrf_token=profile.csrf_token, session_id=profile.session_id)
         
         try:
+            if rate_limiter:
+                rate_limiter.record_request()
             res = client.query(notebook_id, prompt)
             if res and isinstance(res, dict) and res.get("answer"):
+                if rate_limiter:
+                    rate_limiter.record_success()
                 return res
         except Exception as e:
+            if rate_limiter:
+                rate_limiter.record_error_and_backoff()
             err_msg = str(e)
             if "RESOURCE_EXHAUSTED" in err_msg or "error code 8" in err_msg:
                 if wait_for_account_switch(timeout_sec=300):
@@ -181,6 +244,7 @@ def run_batch_generation():
 
     failed_batches = []
     previous_summary = ""
+    rate_limiter = RateLimiter(max_requests_per_minute=30, max_consecutive_errors=3)
 
     for b in batches:
         b_num = b.get("batch")
@@ -227,7 +291,7 @@ def run_batch_generation():
 
             print(f"  Attempt {attempt}/{max_retries}...")
             try:
-                data = run_query_via_cli(notebook_id, attempt_prompt, timeout_sec=300)
+                data = run_query_via_cli(notebook_id, attempt_prompt, timeout_sec=300, rate_limiter=rate_limiter)
                 if data and validate_schema(data):
                     with open(out_filepath, "w", encoding="utf-8") as wf:
                         json.dump(data, wf, ensure_ascii=False, indent=2)
@@ -251,6 +315,15 @@ def run_batch_generation():
                         last_err = f"Validation failed. Peek: '{ans_peek}'"
                     else:
                         last_err = "Empty or unparseable JSON returned."
+            except RateLimitExhaustedError as rle:
+                last_err = str(rle)
+                print(f"  🛑 [Circuit Breaker] {last_err}")
+                failed_batches.append({
+                    "batch": b_num,
+                    "chapters": ch_list,
+                    "error": last_err
+                })
+                break
             except Exception as e:
                 last_err = str(e)
 
@@ -261,11 +334,12 @@ def run_batch_generation():
 
         if not success:
             print(f"  [FAILED] Batch {b_num:02d} failed after {max_retries} attempts.")
-            failed_batches.append({
-                "batch": b_num,
-                "chapters": ch_list,
-                "error": last_err
-            })
+            if not any(fb.get("batch") == b_num for fb in failed_batches):
+                failed_batches.append({
+                    "batch": b_num,
+                    "chapters": ch_list,
+                    "error": last_err
+                })
 
         print(f"  Throttling: waiting {delay_sec}s before next query...")
         time.sleep(delay_sec)

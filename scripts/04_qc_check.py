@@ -5,7 +5,14 @@ import json
 import argparse
 import yaml
 
-sys.stdout.reconfigure(encoding='utf-8')
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+else:
+    sys.stdout.reconfigure(encoding='utf-8')
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 MAX_RETRY_BATCH = 3
@@ -27,6 +34,19 @@ def _normalize(s):
             pass
     return re.sub(r'[\s:："\u2018\u2019\u201c\u201d\'\.,;!?、《》【】「」()\(\)]', '', s)
 
+def detect_duplicate_chapters(headings):
+    """檢測章節標題清單中是否存在重複（基於標準化比對）"""
+    seen = {}
+    duplicates = []
+    for h in headings:
+        norm = _normalize(h)
+        if not norm:
+            continue
+        if norm in seen:
+            duplicates.append((seen[norm], h))
+        else:
+            seen[norm] = h
+    return duplicates
 
 def run_single_qc_pass(report_path):
     """執行單次 QC 比對檢查，回傳 (passed_all, missing_chapters, cover_status)"""
@@ -102,6 +122,13 @@ def run_single_qc_pass(report_path):
             has_density_warnings = True
 
         print(f"{status_flag} {h2_title[:40]}... | Length: {chap_len} chars | Concept: {has_concept} | Details: {has_details}")
+
+    # 2.1 重複章節偵測 (重複章節提醒)
+    duplicates = detect_duplicate_chapters(found_chapter_titles)
+    if duplicates:
+        print(f"\n⚠️ [WARN] 偵測到 {len(duplicates)} 組重複或高度雷同的章節段落：")
+        for orig, dup in duplicates:
+            print(f"   ⚠️ 重複段落: 《{dup}》 與先前 《{orig}》 雷同")
 
     # 2.5 Ground Truth TOC 1對1核對 (Hard-Fail 檢驗)
     gt_json_path = os.path.join(BASE_DIR, "config", "ground_truth_toc.json")

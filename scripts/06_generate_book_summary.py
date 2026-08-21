@@ -5,7 +5,14 @@ import yaml
 import re
 import importlib.util
 
-sys.stdout.reconfigure(encoding='utf-8')
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+else:
+    sys.stdout.reconfigure(encoding='utf-8')
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(BASE_DIR, 'scripts'))

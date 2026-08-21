@@ -4,7 +4,14 @@ import json
 import argparse
 import yaml
 
-sys.stdout.reconfigure(encoding='utf-8')
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+else:
+    sys.stdout.reconfigure(encoding='utf-8')
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 def run_backfill(missing_chapters, notebook_id=None, book_title=None):

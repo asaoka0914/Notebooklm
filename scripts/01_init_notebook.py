@@ -7,7 +7,43 @@ import zipfile
 import xml.etree.ElementTree as ET
 from notebooklm_tools.cli.main import app
 
-sys.stdout.reconfigure(encoding='utf-8')
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+else:
+    sys.stdout.reconfigure(encoding='utf-8')
+
+def plan_batches(chapters: list, batch_size: int = 2) -> list:
+    """
+    規劃批次清單並執行防重疊驗證。
+    每批至多 batch_size 章，且嚴格禁止不同批次之間存在重複章節。
+    """
+    if not chapters:
+        return []
+    
+    batches = []
+    seen = set()
+    total = len(chapters)
+    batch_idx = 1
+
+    for i in range(0, total, batch_size):
+        chunk = chapters[i:i + batch_size]
+        # 檢查 chunk 內部與全域是否重疊
+        overlap = seen.intersection(set(chunk))
+        if overlap:
+            raise ValueError(f"批次規劃發現重疊章節：{overlap}，請檢查章節目錄來源！")
+        for ch in chunk:
+            seen.add(ch)
+        batches.append({
+            "batch": batch_idx,
+            "chapters": chunk
+        })
+        batch_idx += 1
+
+    return batches
 
 def extract_epub_cover(book_path, output_cover_path):
     if not os.path.exists(book_path) or not book_path.lower().endswith(".epub"):
@@ -298,13 +334,7 @@ def init_notebook():
 
         # 自動根據章節清單生成預設批次策略（每 2 章一組），若 config 尚未設定批次則自動注入
         if "batch_strategy" not in config or not config["batch_strategy"].get("batches"):
-            auto_batches = []
-            for i in range(0, len(gt_chapters), 2):
-                batch_chaps = gt_chapters[i:i+2]
-                auto_batches.append({
-                    "batch": len(auto_batches) + 1,
-                    "chapters": batch_chaps
-                })
+            auto_batches = plan_batches(gt_chapters, batch_size=2)
             if "batch_strategy" not in config:
                 config["batch_strategy"] = {}
             config["batch_strategy"]["batches"] = auto_batches

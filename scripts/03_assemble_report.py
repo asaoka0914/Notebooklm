@@ -5,7 +5,14 @@ import re
 import argparse
 import yaml
 
-sys.stdout.reconfigure(encoding='utf-8')
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+else:
+    sys.stdout.reconfigure(encoding='utf-8')
 
 def remove_checklist_sections(text):
     """從 Markdown 內容中剔除『涵蓋度自我檢查清單』區塊"""
