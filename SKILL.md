@@ -139,12 +139,12 @@ original_ref: [[raw/articles/zh/slug|查看完整章節重點精華]]
 
 ## 🏛️ 概念筆記結構規格 (Concept Schema)
 
-寫入 `wiki/concepts/[slug].md` 的標準格式規範（**嚴禁純字串盲目擷取，必須提取核心機制**）：
+寫入 `wiki/concepts/[slug].md` 的標準格式規範（**【硬性規範】** 檔名一律為英文 `[slug].md`，Frontmatter 的 `title` **必須為繁體中文名稱（可附帶英文原名）**，嚴禁以英文 slug 直接當 title；**內文必須具備完整四大核心章節，嚴禁只塞一行字串**）：
 
 `markdown
 ---
 slug: [english-kebab-case-slug]
-title: "繁體中文概念名稱 (English Name)"
+title: "繁體中文概念名稱 (English Name)"   # ⚠️ 強制繁中名稱，如「直覺決策 (Intuitive Decision)」、「正念 (Mindfulness)」
 type: "concept"
 status: "seed" # 剛建立為 seed，經多維度擴充為 budding，最終為 evergreen
 tags: [領域標籤1, 領域標籤2, 領域標籤3]
@@ -192,11 +192,16 @@ sources: ["source-summary-slug"]
    - 明確定義 Agent 接手後的 5 大任務：
      1. 生成標準英文 kebab-case slug（使用安全字元轉換，避免標點正則錯誤）。
      2. 檢查並寫入兩份檔案（詳細版至 raw/articles/zh/，摘要版至 wiki/summaries/）。
-     3. **檢索與維護 wiki/concepts/（防覆蓋與雙向連結驗收）**：
-        - **【強制 Slug 轉譯防呆】**：檢查摘要內的模組二與模組六，**若發現任何純中文裸連結（如 `[[四種經濟狀況反應模型]]`），必須立即修正為 `[[english-slug|繁體中文]]`（如 `[[four-economic-conditions|四種經濟狀況反應模型]]`）**，嚴禁讓純中文裸字串流入知識庫。
+     3. **檢索與維護 wiki/concepts/（防覆蓋與標準品質雙重閉環）**：
+        - **【強制 Slug 轉譯與繁中 Title 防呆】**：
+          - 檢查摘要內的模組二與模組六，**若發現任何純中文裸連結（如 `[[四種經濟狀況反應模型]]`），必須立即修正為 `[[english-slug|繁體中文]]`（如 `[[four-economic-conditions|四種經濟狀況反應模型]]`）**，嚴禁讓純中文裸字串流入知識庫。
+          - 建立概念筆記時，**Frontmatter 中的 `title` 必須為繁體中文名稱**（例如 `title: "直覺決策 (Intuitive Decision)"`），嚴禁直接填入英文 slug（如 `title: "intuitive-decision"`）。
         - 建立任何概念前，必須先檢查 `wiki/concepts/` 資料夾下是否已存在同名或同義概念頁。
         - **若已存在**：**嚴禁覆蓋現有概念筆記**！僅需在該既有概念頁的關聯/來源區塊追加引用鏈結（如 `[[raw/articles/zh/slug|《書名》]]`）。
-        - **若不存在**：才依照標準 Concept 結構建立全新概念筆記。**【重要提取規範】**：建立概念筆記時，**必須直接從 Summary 的「模組二 核心心智模型」中提取該概念已提煉之「機制定義」與「核心價值」**填入對應章節，並於底部「🔗 關聯資料」加入回連該 Summary 的反向連結（`[[wiki/summaries/source-summary|《書名》]]`），**嚴禁盲目抓取無關句子或全文複製**。
+        - **若不存在（完整內容品質保證）**：依照標準 Concept Schema 建立全新概念筆記。
+          - **必須包含完整的四大章節**：`📌 概念定義`、`🧠 運作機制與核心價值`、`⚠️ 常見誤區與邊界條件`、`🔗 關聯資料`。
+          - **必須從 Summary 模組二提煉深度內容**：將該概念的「機制定義」與「核心價值」完整寫入內文，**嚴禁只擷取一行無關字串作為佔位符**。
+          - **反向回連**：底部「🔗 關聯資料」必須帶有回連該 Summary 的反向連結（`- [[wiki/summaries/source-summary|《書名》]]`）。
         - **【強制驗收關卡】**：完成概念關聯後，必須執行 `python check/audit_concept_links.py` 驗收雙向連結完整性，確認無未預期的死連結或缺失反向連結。
      4. 更新 index.md（依書籍領域歸類）。
      5. 追加 log.md（格式：`- [HH:MM] 匯入書籍《書名》 (via: book-reader)`）。
