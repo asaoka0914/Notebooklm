@@ -1,20 +1,22 @@
 # Handoff (交接紀錄)
 
-- **最後更新時間**: 2026-08-21 19:40
+- **最後更新時間**: 2026-08-21 22:25
 - **最後操作裝置**: 家裡電腦 (AsaokaHTPC)
-- **當前狀態**: 🟢 完成概念雙向連結客觀稽核工具實作、假健康檢查替換、Agent 硬性閉環規範與乾淨版 Vault 掃描基準更新，全域技能同步完成。
+- **當前狀態**: 🟢 完成 Concept Schema 標準結構建立、繁中 Title 防呆加固、長篇書籍 6 大深度模組升級（與 wiki-ingest 解耦），全域技能同步與 GitHub 推送完畢。
 - **目前做到哪**: 
-  - **概念雙向連結客觀稽核工具 (`BoBo-wiki/check/audit_concept_links.py`)**：
-    - 全新建立純 Python 稽核工具，排除 `raw/` 與 `outputs/reports/` 誤報，具備 UTF-8 控制台防護、多維度路徑與後綴識別、歧義提示與 Exit Code 阻斷機制。
-    - 實測掃描 113 篇摘要與 61 篇概念頁，精準產出乾淨版基準報告：缺失概念頁 56 筆、缺失反向連結 77 筆、孤兒死連結 10 筆、孤立概念頁 21 筆、歧義連結 4 筆。
-  - **假健康檢查替換與同步日誌 (`BoBo-wiki/__sync_script.py`)**：
-    - 移除寫死假檢查文字，整合稽核腳本自動產出真實健康檢查報告覆寫 `outputs/sync-status.md` 並記錄於 `log.md`。
-  - **Agent 守則與技能硬性閉環 (`BoBo-wiki/agents.md`, `Project/Notebooklm/SKILL.md`)**：
-    - Stage 2 步驟 4「概念關聯與雙向連結」加入執行 `audit_concept_links.py` 之強制驗收關卡，消除「AI 自我宣告」漏洞。
-    - **【概念雙括號語法防呆】**：於 `SKILL.md` 模板與 `06_generate_book_summary.py` Prompt 明確強制 `[[english-slug|中文名稱]]` 格式，嚴禁純中文裸連結流入 Vault。
-  - **日誌與全域同步**：
-    - 更新 `CHANGELOG.md`、`changelog_index.json`、`README.md` (v5.0.5)。
-    - 執行 `install.ps1` 同步更新至 Gemini 與 Claude 全域技能目錄。
+  - **概念筆記結構規範 (Concept Schema) 確立**：
+    - 在 `Project/Notebooklm/SKILL.md` 正式訂立 `wiki/concepts/` 標準 4 大章節結構（📌 概念定義、🧠 運作機制與核心價值、⚠️ 常見誤區與邊界條件、🔗 關聯資料）。
+    - **【繁中 Title 防呆】**：強制要求概念筆記檔名為英文 slug，但 Frontmatter 中的 `title` 必須為繁體中文名稱（如 `title: "直覺決策 (Intuitive Decision)"`），嚴禁直接以英文 slug 當 title。
+    - **【提煉 SOP】**：明定 Stage 2 建立概念時，必須直接自 Summary 模組二提煉機制定義與核心價值，嚴禁只擷取一行無關字串。
+  - **長篇書籍專屬 6 大深度模組升級與解耦**：
+    - 將 `book-reader` 與 `wiki-ingest` 短篇摘要解耦，確立長篇書籍專用之 6 大模組架構（全書核心、核心心智模型、結構脈絡、實踐清單、案例與金句、雙向概念網絡）。
+    - 同步更新 `scripts/06_generate_book_summary.py` Prompt 結構與 `SKILL.md` 範本。
+  - **wiki-ingest 概念與驗收規範對齊**：
+    - 同步升級 `Project/wiki-ingest/SKILL.md`，納入 Concept Schema、繁中 Title 與 `audit_concept_links.py` 驗收關卡，全域部署與 GitHub 推送完成。
+  - **全域技能同步與 GitHub 備份**：
+    - 執行 `install.ps1` 同步更新至 Gemini 與 Claude 全域目錄。
+    - 成功推送最新代碼與文檔至 GitHub 遠端儲存庫。
 - **下一次開工建議**: 
-  - 可直接啟動獨立任務或使用專屬 Agent，依照 `outputs/sync-status.md` 清單開始批次修復 77 筆缺失反向連結與 10 筆孤兒死連結。
-  - 亦可執行長篇書籍導讀生成，目前書籍管線（限流退避、批次防重疊、雙向連結驗收）已全面健全。
+  - 可直接呼叫本地 Agent，針對 `wiki/summaries/` 既有長篇書籍摘要（如《被討厭的勇氣》等）依照最新 6 大深度模組重新升級。
+  - 亦可引導 Agent 針對建立不完整的概念筆記（如 `intuitive-decision.md`、`mindfulness.md` 等）依照新版 Concept Schema 進行內容提煉與升級。
+
