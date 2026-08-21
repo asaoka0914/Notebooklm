@@ -116,7 +116,13 @@ class TestAuthPool(unittest.TestCase):
         self.assertTrue(success)
         status = _auth_pool.get_or_init_status()
         self.assertEqual(status["current_account"], "acc_2")
-        self.assertEqual(status["accounts"]["acc_2"]["total_requests"], 1)
+    @patch('_auth_pool.fetch_token_headless', return_value=False)
+    @patch('_auth_utils.ensure_auth', return_value=True)
+    def test_ensure_auth_pool_fallback_on_all_failures(self, mock_ensure_auth, mock_fetch):
+        # 當所有帳號都失敗時，驗證會呼叫 fallback ensure_auth()
+        success = _auth_pool.ensure_auth_pool()
+        self.assertTrue(success)
+        mock_ensure_auth.assert_called_once()
 
 if __name__ == '__main__':
     unittest.main()

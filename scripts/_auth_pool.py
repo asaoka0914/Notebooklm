@@ -210,13 +210,14 @@ def ensure_auth_pool() -> bool:
     1. 載入設定與狀態檔。
     2. 取當前帳號並檢查是否冷卻；若冷卻則自動切換。
     3. 嘗試取 Token，若失敗或 Chrome 找不到 profile 則輪換嘗試下一個帳號（最多輪換一圈）。
-    4. 若所有帳號皆失敗，回傳 False。
+    4. 若所有帳號皆失敗，自動 Fallback 回退至單帳號互動式 ensure_auth()。
     """
     config = load_pool_config()
     accounts = [acc for acc in config.get("accounts", []) if acc.get("enabled", True)]
     if not accounts:
-        print("⚠️ pool_config.yaml 中未設定任何可用帳號。")
-        return False
+        print("⚠️ pool_config.yaml 中未設定任何可用帳號，切回單帳號模式...")
+        from _auth_utils import ensure_auth
+        return ensure_auth()
 
     pool_status = get_or_init_status()
     total_accounts = len(accounts)
@@ -230,7 +231,7 @@ def ensure_auth_pool() -> bool:
             current_acc = select_next_account(pool_status, config, exclude_current=False)
             if not current_acc:
                 print("❌ 帳號池無可用帳號。")
-                return False
+                break
             pool_status["current_account"] = current_acc["id"]
             save_pool_status(pool_status)
 
@@ -240,7 +241,7 @@ def ensure_auth_pool() -> bool:
             print(f"⏳ 當前帳號 [{current_acc['id']}] 冷卻中，尋找下一個帳號...")
             current_acc = rotate_account(pool_status, config)
             if not current_acc:
-                return False
+                break
 
         # 執行 headless 取得 Token
         if fetch_token_headless(current_acc):
@@ -258,7 +259,10 @@ def ensure_auth_pool() -> bool:
             if not current_acc:
                 break
 
-    return False
+    # 5. 全部失敗 → fallback 到 _auth_utils.ensure_auth()
+    print("⚠️ 帳號池所有帳號均認證失敗或冷卻中，啟動優雅降級 (Fallback 至單帳號互動選單)...")
+    from _auth_utils import ensure_auth
+    return ensure_auth()
 
 def pool_status_report():
     """印出帳號池目前狀態（CLI 輔助檢視）。"""

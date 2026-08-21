@@ -207,7 +207,7 @@ def ensure_auth_pool() -> bool
     # 2. fetch_token_headless() → 取 Token
     # 3. 成功 → True
     # 4. 失敗 → rotate_account() → 重試（最多輪換一圈）
-    # 5. 全部失敗 → fallback 到 _auth_utils.ensure_auth()
+    # 5. 全部失敗 → fallback 到 _auth_utils.ensure_auth()（優雅降級至單帳號互動選單）
 
 def pool_status_report() -> None
     # 印出帳號池狀態表格（給 CLI 用）
@@ -223,7 +223,7 @@ def pool_status_report() -> None
 def ensure_auth_with_pool() -> bool:
     """
     優先嘗試使用帳號池（_auth_pool.ensure_auth_pool()），
-    若 auth_pool/pool_config.yaml 不存在，fallback 到原本的 ensure_auth()。
+    若 auth_pool/pool_config.yaml 不存在或失敗，自動 fallback 回退至原本的 ensure_auth()。
     """
     pool_config = Path(__file__).parent.parent / "auth_pool" / "pool_config.yaml"
     if pool_config.exists():
