@@ -74,7 +74,7 @@ flowchart TD
         S2_1[1. 基於書名生成標準英文 slug 與 YAML Frontmatter 參數]
         S2_2[2. 呼叫 03_assemble_report.py 的 prepend_article_frontmatter() 或使用檔案流將 Frontmatter 注入並輸出至 raw/articles/zh/slug.md（零 Token 讀取）]
         S2_3[3. 將 深度摘要 歸檔至 wiki/summaries/slug-summary.md，並根據此時確定的 slug 補上 original_ref 反向連結]
-        S2_4[4. 檢索 wiki/concepts/, 建立雙向雙括號連結與新概念頁]
+        S2_4[4. 檢索 wiki/concepts/, 建立雙向雙括號連結並執行 check/audit_concept_links.py 驗收]
         S2_5[5. 手動追加 index.md 與 log.md]
 
         S2_0 --> S2_1 --> S2_2 --> S2_3 --> S2_4 --> S2_5
@@ -161,10 +161,11 @@ original_ref: [[raw/articles/zh/slug|查看完整章節重點精華]]
    - 明確定義 Agent 接手後的 5 大任務：
      1. 生成標準英文 kebab-case slug（使用安全字元轉換，避免標點正則錯誤）。
      2. 檢查並寫入兩份檔案（詳細版至 raw/articles/zh/，摘要版至 wiki/summaries/）。
-     3. **檢索與維護 wiki/concepts/（防覆蓋核心機制）**：
+     3. **檢索與維護 wiki/concepts/（防覆蓋與雙向連結驗收）**：
         - 建立任何概念前，必須先檢查 `wiki/concepts/` 資料夾下是否已存在同名或同義概念頁。
         - **若已存在**：**嚴禁覆蓋現有概念筆記**！僅需在該既有概念頁的關聯/來源區塊追加引用鏈結（如 `[[raw/articles/zh/slug|《書名》]]`）。
         - **若不存在**：才依照標準 Concept 結構建立全新概念筆記。
+        - **【強制驗收關卡】**：完成概念關聯後，必須執行 `python check/audit_concept_links.py` 驗收雙向連結完整性，確認無未預期的死連結或缺失反向連結。
      4. 更新 index.md（依書籍領域歸類）。
      5. 追加 log.md（格式：`- [HH:MM] 匯入書籍《書名》 (via: book-reader)`）。
      6. **清理暫存檔**：確認所有成果成功歸檔後，執行清理 `raw_outputs/[書名]/` 下的中間 batch JSON 檔案。

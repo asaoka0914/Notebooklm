@@ -1,19 +1,19 @@
 # Handoff (交接紀錄)
 
-- **最後更新時間**: 2026-08-21 12:32
+- **最後更新時間**: 2026-08-21 19:40
 - **最後操作裝置**: 家裡電腦 (AsaokaHTPC)
-- **當前狀態**: 🟢 完成 Windows 除錯腳本防錯機制與測試閉環驗收，單元測試（32 項測試 100% 通過），全域技能同步完成。
+- **當前狀態**: 🟢 完成概念雙向連結客觀稽核工具實作、假健康檢查替換、Agent 硬性閉環規範與乾淨版 Vault 掃描基準更新，全域技能同步完成。
 - **目前做到哪**: 
-  - **Windows 除錯腳本防錯規範與驗證 (`windows-encoding-path-fix-plan.md`, `scratch/verify_debug_template.py`)**：
-    - 建立三層 UTF-8 輸出防護（`PYTHONIOENCODING=utf-8`、`TextIOWrapper` 與 preview `errors='replace'`），徹底解決 Windows 終端機 `cp950` 無法印出 Emoji 導致腳本崩潰問題。
-    - 規範以 `pathlib.Path` 定義專案基準路徑並自動 `mkdir(parents=True, exist_ok=True)`，避免路徑拼字錯誤或目錄不存在。
-    - 封裝 `safe_write()` 寫檔容錯函式，單一步驟異常不中斷後續測試。
-    - 驗證 `notebook list`、`query test`、`source add --help` 與 `notebook create --help` 四項測試，全數在 `Project\Notebooklm\scratch\` 正確產出。
-  - **多 Profile 帳號池 fallback 修復 (`_auth_pool.py`)**：
-    - 當所有帳號失敗或冷卻時自動 fallback 降級調用 `_auth_utils.ensure_auth()` 互動選單，單元測試 100% 通過。
-  - **專案日誌與全域同步**：
-    - 更新 `CHANGELOG.md` 與 `changelog_index.json`。
+  - **概念雙向連結客觀稽核工具 (`BoBo-wiki/check/audit_concept_links.py`)**：
+    - 全新建立純 Python 稽核工具，排除 `raw/` 與 `outputs/reports/` 誤報，具備 UTF-8 控制台防護、多維度路徑與後綴識別、歧義提示與 Exit Code 阻斷機制。
+    - 實測掃描 113 篇摘要與 61 篇概念頁，精準產出乾淨版基準報告：缺失概念頁 56 筆、缺失反向連結 77 筆、孤兒死連結 10 筆、孤立概念頁 21 筆、歧義連結 4 筆。
+  - **假健康檢查替換與同步日誌 (`BoBo-wiki/__sync_script.py`)**：
+    - 移除寫死假檢查文字，整合稽核腳本自動產出真實健康檢查報告覆寫 `outputs/sync-status.md` 並記錄於 `log.md`。
+  - **Agent 守則與技能硬性閉環 (`BoBo-wiki/agents.md`, `Project/Notebooklm/SKILL.md`)**：
+    - Stage 2 步驟 4「概念關聯與雙向連結」加入執行 `audit_concept_links.py` 之強制驗收關卡，消除「AI 自我宣告」漏洞。
+  - **日誌與全域同步**：
+    - 更新 `CHANGELOG.md`、`changelog_index.json`、`README.md` (v5.0.5)。
     - 執行 `install.ps1` 同步更新至 Gemini 與 Claude 全域技能目錄。
 - **下一次開工建議**: 
-  - 臨時除錯或探勘 NotebookLM CLI 時，可直接參考/套用 `scratch/verify_debug_template.py` 之標準防錯範本。
-  - 處理新書籍管線時，直接執行 `python scripts/01_init_notebook.py ...`，帳號池與各階段 pipeline 已穩定就緒。
+  - 可直接啟動獨立任務或使用專屬 Agent，依照 `outputs/sync-status.md` 清單開始批次修復 77 筆缺失反向連結與 10 筆孤兒死連結。
+  - 亦可執行長篇書籍導讀生成，目前書籍管線（限流退避、批次防重疊、雙向連結驗收）已全面健全。
