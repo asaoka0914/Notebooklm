@@ -108,11 +108,11 @@ original_ref: [[raw/articles/zh/slug|查看完整章節重點精華]]
 - **適用對象與情境**：適合誰閱讀、何種決策場景最具參考價值。
 
 ## 🧠 二、核心心智模型與底層理論 (Core Mental Models & Concepts)
-*(提煉 6 ~ 8 個關鍵概念，精準對應 Obsidian Concepts)*
-1. **[[概念名稱 A]]**：
+*(提煉 6 ~ 8 個關鍵概念，精準對應 Obsidian Concepts。**【防呆重要】** 概念名稱必須統一採用 `[[english-slug|繁體中文概念]]` 格式，嚴禁純中文裸連結如 `[[目的論]]`)*
+1. **[[purpose-teleology|目的論]]**：
    - **機制定義**：...
    - **核心價值**：...
-2. **[[概念名稱 B]]**：
+2. **[[separation-of-tasks|課題分離]]**：
    - **機制定義**：...
    - **核心價值**：...
 *(以此類推 6~8 項)*
@@ -133,8 +133,8 @@ original_ref: [[raw/articles/zh/slug|查看完整章節重點精華]]
 - **全書精選金句**：3~5 句極具啟發性的原文金句。
 
 ## 🔗 六、Obsidian 概念關聯與延伸閱讀 (Knowledge Graph Connections)
-- **核心概念導引**：[[概念1]]、[[概念2]]、[[概念3]]、[[概念4]]、[[概念5]]
-- **知識庫關聯主題**：[[關聯主題或相關筆記]]
+- **核心概念導引**：[[purpose-teleology|目的論]]、[[separation-of-tasks|課題分離]]、[[social-interest|社會意識]]、[[self-acceptance|自我接納]]、[[horizontal-relationship|橫向關係]]（**一律使用 `[[slug|名稱]]` 格式**）
+- **知識庫關聯主題**：[[adlerian-psychology|阿德勒心理學]]
 `
 
 ---
@@ -153,8 +153,6 @@ original_ref: [[raw/articles/zh/slug|查看完整章節重點精華]]
 3. **[MODIFY] 更新一鍵執行入口**：
    - 確保自動化腳本依次執行 `01 → 02 → 03 → 04（必要時循環 05）→ 06`，執行完畢後同時備妥 詳細重點精華（final/書名/書名.md）與 標準 6 模組深度摘要（temp_book_summary.md）兩份中間成果。
 
----
-
 ### 階段二：本地端 Agent 協作協議與 SKILL 定義
 
 1. **[MODIFY] 更新 SKILL.md**：
@@ -162,6 +160,7 @@ original_ref: [[raw/articles/zh/slug|查看完整章節重點精華]]
      1. 生成標準英文 kebab-case slug（使用安全字元轉換，避免標點正則錯誤）。
      2. 檢查並寫入兩份檔案（詳細版至 raw/articles/zh/，摘要版至 wiki/summaries/）。
      3. **檢索與維護 wiki/concepts/（防覆蓋與雙向連結驗收）**：
+        - **【強制 Slug 轉譯防呆】**：檢查摘要內的模組二與模組六，**若發現任何純中文裸連結（如 `[[四種經濟狀況反應模型]]`），必須立即修正為 `[[english-slug|繁體中文]]`（如 `[[four-economic-conditions|四種經濟狀況反應模型]]`）**，嚴禁讓純中文裸字串流入知識庫。
         - 建立任何概念前，必須先檢查 `wiki/concepts/` 資料夾下是否已存在同名或同義概念頁。
         - **若已存在**：**嚴禁覆蓋現有概念筆記**！僅需在該既有概念頁的關聯/來源區塊追加引用鏈結（如 `[[raw/articles/zh/slug|《書名》]]`）。
         - **若不存在**：才依照標準 Concept 結構建立全新概念筆記。

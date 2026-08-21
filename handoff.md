@@ -11,6 +11,7 @@
     - 移除寫死假檢查文字，整合稽核腳本自動產出真實健康檢查報告覆寫 `outputs/sync-status.md` 並記錄於 `log.md`。
   - **Agent 守則與技能硬性閉環 (`BoBo-wiki/agents.md`, `Project/Notebooklm/SKILL.md`)**：
     - Stage 2 步驟 4「概念關聯與雙向連結」加入執行 `audit_concept_links.py` 之強制驗收關卡，消除「AI 自我宣告」漏洞。
+    - **【概念雙括號語法防呆】**：於 `SKILL.md` 模板與 `06_generate_book_summary.py` Prompt 明確強制 `[[english-slug|中文名稱]]` 格式，嚴禁純中文裸連結流入 Vault。
   - **日誌與全域同步**：
     - 更新 `CHANGELOG.md`、`changelog_index.json`、`README.md` (v5.0.5)。
     - 執行 `install.ps1` 同步更新至 Gemini 與 Claude 全域技能目錄。
