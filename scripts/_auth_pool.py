@@ -185,6 +185,15 @@ def rotate_account(pool_status: dict, config: dict) -> dict | None:
         print("⚠️ 帳號池中所有帳號均在冷卻中或無可用帳號。")
         return None
 
+def is_current_token_valid() -> bool:
+    """檢查當前本地快取的 Token 是否依然有效。"""
+    try:
+        from notebooklm_tools.core.auth import check_auth
+        result = check_auth(profile='default', live=True)
+        return bool(getattr(result, 'valid', False))
+    except Exception:
+        return False
+
 def fetch_token_headless(account: dict, timeout_sec: int = 60) -> bool:
     """
     以 email 動態查找 Chrome Profile 目錄，啟動 headless Chrome 並透過 CDP 快取新 Token。
@@ -208,8 +217,8 @@ def ensure_auth_pool() -> bool:
     """
     帳號池主入口：
     1. 載入設定與狀態檔。
-    2. 取當前帳號並檢查是否冷卻；若冷卻則自動切換。
-    3. 嘗試取 Token，若失敗或 Chrome 找不到 profile 則輪換嘗試下一個帳號（最多輪換一圈）。
+    2. 若當前已有有效 Token，直接使用（避免已開 Chrome 造成 CDP 衝突）。
+    3. 若無有效 Token 或帳號在冷卻中，依序嘗試 headless 取 Token（最多輪換一圈）。
     4. 若所有帳號皆失敗，自動 Fallback 回退至單帳號互動式 ensure_auth()。
     """
     config = load_pool_config()
@@ -220,9 +229,24 @@ def ensure_auth_pool() -> bool:
         return ensure_auth()
 
     pool_status = get_or_init_status()
+    current_id = pool_status.get("current_account")
+    current_acc = next((acc for acc in accounts if acc["id"] == current_id), None)
+    if not current_acc and accounts:
+        current_acc = accounts[0]
+        pool_status["current_account"] = current_acc["id"]
+        save_pool_status(pool_status)
+
+    # 1. 優先檢查現有快取 Token：若當前帳號未冷卻且 Token 有效，直接使用無需重啟 Chrome
+    if current_acc:
+        acc_stat = pool_status.setdefault("accounts", {}).setdefault(current_acc["id"], {})
+        if not is_account_in_cooldown(acc_stat):
+            if is_current_token_valid():
+                print(f"✅ 當前帳號 [{current_acc['id']}] Token 依然有效，直接使用（無需啟動 Chrome）。")
+                return True
+
     total_accounts = len(accounts)
 
-    # 嘗試最多 total_accounts 次
+    # 2. 當前 Token 無效或需切換時，嘗試透過 Chrome CDP 取得新 Token
     for attempt in range(total_accounts):
         current_id = pool_status.get("current_account")
         current_acc = next((acc for acc in accounts if acc["id"] == current_id), None)
@@ -259,7 +283,7 @@ def ensure_auth_pool() -> bool:
             if not current_acc:
                 break
 
-    # 5. 全部失敗 → fallback 到 _auth_utils.ensure_auth()
+    # 3. 全部失敗 → fallback 到 _auth_utils.ensure_auth()
     print("⚠️ 帳號池所有帳號均認證失敗或冷卻中，啟動優雅降級 (Fallback 至單帳號互動選單)...")
     from _auth_utils import ensure_auth
     return ensure_auth()

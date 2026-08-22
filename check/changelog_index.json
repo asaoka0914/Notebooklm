@@ -1,5 +1,15 @@
 [
   {
+    "time": "2026-08-22 09:31",
+    "title": "優化帳號池認證順序（Token 優先複用防 Chrome 衝突）與 CDP 失敗指引",
+    "files": [
+      "scripts/_auth_pool.py",
+      "scripts/_auth_utils.py",
+      "tests/test_improvements.py"
+    ],
+    "status": "✅完成"
+  },
+  {
     "time": "2026-08-22 08:55",
     "title": "修復 Concept 頁面反向連結英文 slug 顯示問題並同步更新兩大專案與全域 SKILL 規範",
     "files": [

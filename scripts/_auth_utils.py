@@ -118,7 +118,7 @@ def _launch_chrome_and_authenticate(profile_dir, timeout_sec=60):
 
     if not cdp_ready:
         chrome_proc.terminate()
-        print("❌ Chrome CDP 無法就緒")
+        print("❌ Chrome CDP 無法就緒（若目前已有一般 Chrome 視窗開著，請先關閉所有 Chrome 視窗後再重試）")
         return False
 
     tokens = None

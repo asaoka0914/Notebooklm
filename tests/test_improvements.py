@@ -82,5 +82,18 @@ class TestImprovements(unittest.TestCase):
         self.assertEqual(dups[0][0], "第 1 章：理財基礎")
         self.assertEqual(dups[0][1], "第1章 理財基礎")
 
+    def test_auth_pool_valid_token_skips_chrome_launch(self):
+        """測試當本地 Token 仍有效時，ensure_auth_pool 會直接略過 Chrome 啟動"""
+        spec_pool = importlib.util.spec_from_file_location('mod_pool', os.path.join(BASE_DIR, 'scripts', '_auth_pool.py'))
+        mod_pool = importlib.util.module_from_spec(spec_pool)
+        spec_pool.loader.exec_module(mod_pool)
+
+        from unittest.mock import patch
+        with patch.object(mod_pool, 'is_current_token_valid', return_value=True), \
+             patch.object(mod_pool, 'fetch_token_headless') as mock_fetch:
+            res = mod_pool.ensure_auth_pool()
+            self.assertTrue(res)
+            mock_fetch.assert_not_called()
+
 if __name__ == '__main__':
     unittest.main()
