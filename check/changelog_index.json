@@ -1,0 +1,388 @@
+[
+  {
+    "time": "2026-08-22 08:55",
+    "title": "修復 Concept 頁面反向連結英文 slug 顯示問題並同步更新兩大專案與全域 SKILL 規範",
+    "files": [
+      "SKILL.md",
+      "wiki-ingest/SKILL.md",
+      "check/fix_concept_summary_titles.py",
+      "BoBo-wiki/wiki/concepts/"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-21 22:25",
+    "title": "完成 Concept Schema 規範訂立、繁中 Title 防呆加固與長篇書籍 6 大深度模組升級",
+    "files": [
+      "SKILL.md",
+      "scripts/06_generate_book_summary.py",
+      "README.md",
+      "handoff.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-21 17:25",
+    "title": "完成概念雙向連結客觀稽核工具與三道防禦閉環實作",
+    "files": [
+      "check/audit_concept_links.py",
+      "__sync_script.py",
+      "agents.md",
+      "SKILL.md",
+      "concept-bidirectional-link-fix-plan.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-21 14:25",
+    "title": "完成 book-reader 執行問題修正（智能限流退避、批次防重疊、重複章節偵測與 UTF-8 控制台防護）",
+    "files": [
+      "scripts/02_batch_generate.py",
+      "scripts/01_init_notebook.py",
+      "scripts/04_qc_check.py",
+      "scripts/03_assemble_report.py",
+      "scripts/05_backfill.py",
+      "scripts/06_generate_book_summary.py",
+      "tests/test_improvements.py"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-21 12:12",
+    "title": "完成 Windows 除錯腳本防錯機制實作與驗收",
+    "files": [
+      "windows-encoding-path-fix-plan.md",
+      "scratch/verify_debug_template.py",
+      "scratch/notebooks.json",
+      "scratch/query_test.json",
+      "scratch/source_add_help.txt",
+      "scratch/notebook_create_help.txt"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-21 08:00",
+    "title": "落實 Multi-Profile Auth Pool 缺陷修復（實作全部失敗自動 fallback 至 ensure_auth() 與測試閉環）",
+    "files": [
+      "scripts/_auth_pool.py",
+      "tests/test_auth_pool.py",
+      "multi-profile-auth-pool-fix-plan.md",
+      "multi-profile-auth-pool-plan.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-20 17:28",
+    "title": "完成多 Profile 預認證帳號池（Multi-Profile Auth Pool）實作與測試閉環",
+    "files": [
+      "auth_pool/pool_config.yaml",
+      "scripts/_auth_pool.py",
+      "scripts/_auth_utils.py",
+      "scripts/01_init_notebook.py",
+      "scripts/02_batch_generate.py",
+      "scripts/05_backfill.py",
+      "scripts/06_generate_book_summary.py",
+      ".gitignore",
+      "tests/test_auth_pool.py"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-20 17:15",
+    "title": "修復長篇書籍管線 8 大實務問題（標題正規化、AI 導語清除、跨批次去重、空 Part 豁免、Concept 防覆蓋規範）",
+    "files": [
+      "scripts/03_assemble_report.py",
+      "scripts/04_qc_check.py",
+      "SKILL.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-20 14:43",
+    "title": "完成 book-reader 故障閉環修復（新書狀態自動重置、空批次防偽成功、純數字/引號標題正規化）",
+    "files": [
+      "scripts/01_init_notebook.py",
+      "scripts/02_batch_generate.py",
+      "scripts/03_assemble_report.py",
+      "SKILL.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-20 13:51",
+    "title": "支援純數字/課堂章節標記 (TOC/H2 正規化) 與 01 自動生成批次配置",
+    "files": [
+      "scripts/01_init_notebook.py",
+      "scripts/03_assemble_report.py",
+      "tests/test_epub_toc_and_assemble.py"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-20 13:15",
+    "title": "增強認證模組非互動環境 (Non-interactive/EOF) 容錯與全套單元測試閉環",
+    "files": [
+      "scripts/_auth_utils.py",
+      "tests/test_auth_non_interactive.py"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-18 22:18",
+    "title": "QC 檢查流程擴充書籍封面 (Book Cover) 完整性比對與暫存清理保護",
+    "files": [
+      "scripts/04_qc_check.py",
+      "tests/test_epub_toc_and_assemble.py"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-18 21:47",
+    "title": "更新全書導讀模板第一模組標題為「一、全書核心(Executive Summary)」",
+    "files": [
+      "scripts/06_generate_book_summary.py",
+      "tests/test_06_summary.py",
+      "SKILL.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-18 17:05",
+    "title": "實作 Chrome 本地 Profile 偵測與多帳號自動認證/限流切換整合",
+    "files": [
+      "scripts/_auth_utils.py",
+      "scripts/02_batch_generate.py",
+      "tests/test_epub_toc_and_assemble.py",
+      "handoff.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-15 15:04",
+    "title": "擴充章節標記關鍵字集合 (CHAPTER_MARKERS) 與測試閉環",
+    "files": [
+      "scripts/01_init_notebook.py",
+      "tests/test_epub_toc_and_assemble.py"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-15 14:46",
+    "title": "完成 book-reader v5.0.2 閉環修復（B1 繁簡同化安全匯入、B2 雙路徑前導詞過濾、B4 配置開關與回歸測試）",
+    "files": [
+      "scripts/04_qc_check.py",
+      "scripts/01_init_notebook.py",
+      "scripts/03_assemble_report.py",
+      "config/book_config.yaml.template",
+      "requirements.txt",
+      "tests/test_epub_toc_and_assemble.py"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-15 06:45",
+    "title": "響應審查建議：強化 EPUB 正則 Fallback 容錯與補齊非良構 XML 測試閉環",
+    "files": [
+      "scripts/01_init_notebook.py",
+      "tests/test_epub_toc_and_assemble.py",
+      "book-reader-v5.0.2-fix-plan.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-15 06:35",
+    "title": "實作跨電腦一鍵安裝功能 (install.ps1) 與動態 Obsidian Vault 搜尋模組 (env_config.py)",
+    "files": [
+      "install.ps1",
+      "scripts/env_config.py",
+      "requirements.txt",
+      "scripts/03_assemble_report.py",
+      "README.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-15 06:28",
+    "title": "專案結構升級：以 book-reader 程式全面取代舊程式並封存至 old data",
+    "files": [
+      "old data",
+      "scripts",
+      "SKILL.md",
+      "AGENTS.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-14 22:48",
+    "title": "完成 book-reader v5.0.2 修正與強化（QC Guard 嚴格校驗、EPUB TOC 擴充、YAML Frontmatter 自動注入）",
+    "files": [
+      "book-reader/scripts/01_init_notebook.py",
+      "book-reader/scripts/03_assemble_report.py",
+      "book-reader/scripts/06_generate_book_summary.py",
+      "book-reader/SKILL.md",
+      "tests/test_qc_guard.py",
+      "tests/test_epub_toc_and_assemble.py"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-14 15:43",
+    "title": "修復 03/05 自動補課組裝崩潰 Bug、強化 04/06 嚴格 QC 判定與同步文件",
+    "files": [
+      "scripts/03_assemble_report.py",
+      "scripts/05_backfill.py",
+      "scripts/04_qc_check.py",
+      "scripts/06_generate_book_summary.py",
+      "tests/test_06_summary.py",
+      "README.md",
+      "SKILL.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-14 14:30",
+    "title": "完成 book-reader v5.0.1 升級（6 模組全書深度摘要、雙檔分流與本地 Agent 概念圖譜接手）",
+    "files": [
+      "scripts/06_generate_book_summary.py",
+      "SKILL.md",
+      "book-reader-v5-implementation-plan.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-07 17:22",
+    "title": "實施 Ground Truth TOC 純筆記本情境優化 (v4 方案)",
+    "files": [
+      "01_init_notebook.py"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-07 16:29",
+    "title": "重構完成 04_qc_check 閉環自動補課驗證迴圈與死碼清理",
+    "files": [
+      "04_qc_check.py",
+      "01_init_notebook.py",
+      "source/讀書報告核心概念.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-07 16:08",
+    "title": "完成 book-reader v3 升級（中途 Auth 恢復、阻塞輪詢、Ground Truth 1對1核對與 05_backfill 自動補課）",
+    "files": [
+      "_auth_utils.py",
+      "01_init_notebook.py",
+      "02_batch_generate.py",
+      "04_qc_check.py",
+      "05_backfill.py",
+      "SKILL.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-07 14:03",
+    "title": "修復 book-reader 技能實測發現之 6 大缺陷",
+    "files": [
+      "讀書報告核心概念.md",
+      "01_init_notebook.py",
+      "03_assemble_report.py",
+      "book_config.yaml.template",
+      "SKILL.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-05 22:24",
+    "title": "修正 book-reader 腳本絕對路徑與封面找不到警告機制",
+    "files": [
+      "01_init_notebook.py",
+      "02_batch_generate.py",
+      "03_assemble_report.py",
+      "04_qc_check.py",
+      "SKILL.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-05 18:59",
+    "title": "使用 chezmoi 同步與 commit book-reader 技能變更",
+    "files": [
+      "C:/Users/AsaokaHTPC/.gemini/config/skills/book-reader/SKILL.md",
+      "C:/Users/AsaokaHTPC/.local/share/chezmoi/dot_gemini/config/skills/book-reader/SKILL.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-05 17:30",
+    "title": "重構 book-reader 技能防截斷流程與 Ground Truth TOC 檢核機制",
+    "files": [
+      "book-reader_SKILL.md",
+      "C:/Users/AsaokaHTPC/.gemini/config/skills/book-reader/SKILL.md",
+      ".gitignore"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-03 07:47",
+    "title": "完成《跟著肯恩費雪洞悉市場》全書導讀與深度分析報告產出（含 1/4 封面內嵌）",
+    "files": [
+      "final/跟著肯恩費雪洞悉市場/跟著肯恩費雪洞悉市場.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-03 07:23",
+    "title": "新增限流互動式彈出 Chrome 切換 Google 帳號機制（完全零密碼/Token 紀錄）",
+    "files": [
+      "scripts/02_batch_generate.py"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-03 07:15",
+    "title": "直連 SDK 查詢支援與應使用者要求終止（今日 NotebookLM 配額已達上限）",
+    "files": [
+      "scripts/02_batch_generate.py",
+      "scripts/01_init_notebook.py"
+    ],
+    "status": "🛑已停止"
+  },
+  {
+    "time": "2026-08-03 06:49",
+    "title": "調整 Base64 內嵌封面圖片長寬為 50%（體積變為 1/4）",
+    "files": [
+      "scripts/03_assemble_report.py"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-02 22:20",
+    "title": "完成《別把你的錢留到死》捏造章節清理、Base64 封面內嵌與防錯架構修訂",
+    "files": [
+      "scripts/01_init_notebook.py",
+      "scripts/03_assemble_report.py",
+      "scripts/04_qc_check.py"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-02 19:55",
+    "title": "完成 NotebookLM Pipeline 自動化與封面/清單/過濾追加功能",
+    "files": [
+      "scripts/01_init_notebook.py",
+      "scripts/02_batch_generate.py",
+      "scripts/03_assemble_report.py",
+      "scripts/04_qc_check.py"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-02 16:30",
+    "title": "專案初始化",
+    "files": [
+      "init-project.py"
+    ],
+    "status": "✅完成"
+  }
+]
