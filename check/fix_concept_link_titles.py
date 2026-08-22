@@ -59,7 +59,7 @@ for cf in concepts_dir.glob("*.md"):
 print(f"Loaded {len(summary_titles)} summary titles and {len(concept_titles)} concept titles.")
 
 
-def fix_links_in_text(text: str, target_cf_name: str = "") -> (str, int):
+def fix_links_in_text(text: str, file_name: str = "") -> (str, int):
     lines = text.split("\n")
     new_lines = []
     replaced_count = 0
@@ -78,7 +78,7 @@ def fix_links_in_text(text: str, target_cf_name: str = "") -> (str, int):
                 return full_match
 
             # Case A: Explicit or matching Summary
-            if prefix.startswith("wiki/summaries/") or suffix == "-summary" or target_slug in summary_titles:
+            if prefix.startswith("wiki/summaries/") or suffix == "-summary" or (target_slug in summary_titles and target_slug not in concept_titles):
                 if target_slug in summary_titles:
                     correct_title = summary_titles[target_slug]
                     has_chinese = bool(alias and re.search(r'[\u4e00-\u9fff]', alias))
@@ -120,6 +120,8 @@ def process_single_file(file_path: Path):
 def process_all_files():
     modified_files = 0
     total_replaced = 0
+    
+    # Process concepts
     for cf in sorted(concepts_dir.glob("*.md")):
         if cf.name.startswith("."):
             continue
@@ -129,18 +131,46 @@ def process_all_files():
             cf.write_text(new_text, encoding="utf-8")
             modified_files += 1
             total_replaced += count
-            print(f"Updated: {cf.name} ({count} fixed)")
+            print(f"Updated Concept: {cf.name} ({count} fixed)")
 
-    print(f"\nDone! Modified {modified_files} concept files, fixed {total_replaced} link aliases.")
+    # Process summaries
+    for sf in sorted(summaries_dir.glob("*.md")):
+        if sf.name.startswith("."):
+            continue
+        text = sf.read_text(encoding="utf-8", errors="replace")
+        new_text, count = fix_links_in_text(text, sf.name)
+        if new_text != text:
+            sf.write_text(new_text, encoding="utf-8")
+            modified_files += 1
+            total_replaced += count
+            print(f"Updated Summary: {sf.name} ({count} fixed)")
+
+    print(f"\nDone! Modified {modified_files} files, fixed {total_replaced} link aliases.")
+
+
+def find_target_file(target_name: str) -> Path:
+    p = Path(target_name)
+    if p.exists() and p.is_file():
+        return p
+    c_target = concepts_dir / (target_name if target_name.endswith(".md") else f"{target_name}.md")
+    if c_target.exists():
+        return c_target
+    s_target = summaries_dir / (target_name if target_name.endswith(".md") else f"{target_name}.md")
+    if s_target.exists():
+        return s_target
+    s_target_with_summary = summaries_dir / f"{target_name}-summary.md"
+    if s_target_with_summary.exists():
+        return s_target_with_summary
+    return None
 
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         target_name = sys.argv[1]
-        target_file = concepts_dir / (target_name if target_name.endswith(".md") else f"{target_name}.md")
-        if target_file.exists():
+        target_file = find_target_file(target_name)
+        if target_file and target_file.exists():
             process_single_file(target_file)
         else:
-            print(f"File not found: {target_file}")
+            print(f"File not found for input: {target_name}")
     else:
         process_all_files()
