@@ -1,0 +1,81 @@
+[
+  {
+    "batch": 1,
+    "chapters": [
+      "財務自由筆記：九堂課教你用工資賺到第一個600萬 (“股神”沃倫·巴菲特、“20世紀四大投資巨人”之一約翰·博格推崇的投資金律,《華爾街日報》投資理財類暢銷書;百萬富翁導師內部特訓教程，一年只需60 分鐘，財富積累立見成效；新手一看就懂，穩健賺錢！)",
+      "第一堂課　成為有錢人的第一步：學會花錢　Spend Like You Want to Grow Rich"
+    ],
+    "error": "Empty or unparseable JSON returned."
+  },
+  {
+    "batch": 2,
+    "chapters": [
+      "你掌握第一堂理財課了嗎？",
+      "第二堂課　複利的神奇魔法　Use the Greatest Investment Ally You Have"
+    ],
+    "error": "Empty or unparseable JSON returned."
+  },
+  {
+    "batch": 3,
+    "chapters": [
+      "你掌握第二堂理財課了嗎？",
+      "第三堂課　指數基金：理財顧問祕而不宣的理財內幕　Small Fees Pack Big Punches"
+    ],
+    "error": "已連續退避 5 輪仍失敗，觸發全局中斷保護"
+  },
+  {
+    "batch": 4,
+    "chapters": [
+      "你掌握第三堂理財課了嗎？",
+      "第四堂課　讓巴菲特亢奮的熊市　Conquer the Enemy in the Mirror"
+    ],
+    "error": "已連續退避 6 輪仍失敗，觸發全局中斷保護"
+  },
+  {
+    "batch": 5,
+    "chapters": [
+      "你掌握第四堂理財課了嗎？",
+      "第五堂課　備好“投資組合”降落傘，股市崩盤照樣賺　Build Mountains of Money with a Responsible Portfolio"
+    ],
+    "error": "已連續退避 7 輪仍失敗，觸發全局中斷保護"
+  },
+  {
+    "batch": 6,
+    "chapters": [
+      "你掌握第五堂理財課了嗎？",
+      "第六堂課　試試“全球指數”，把雞蛋放進更多籃子　Sample a “Round-the-World”Ticket to Indexing"
+    ],
+    "error": "已連續退避 8 輪仍失敗，觸發全局中斷保護"
+  },
+  {
+    "batch": 7,
+    "chapters": [
+      "你掌握第六堂理財課了嗎？",
+      "第七堂課　別逞強，在投資這件事上沒有必要親力親為　No, You Don’t Have to Invest on Your Own"
+    ],
+    "error": "已連續退避 9 輪仍失敗，觸發全局中斷保護"
+  },
+  {
+    "batch": 8,
+    "chapters": [
+      "你掌握第七堂理財課了嗎？",
+      "第八堂課　捂緊錢包，識破理財顧問的“小心思”　Peek Inside A Pilferer’s Playbook"
+    ],
+    "error": "已連續退避 10 輪仍失敗，觸發全局中斷保護"
+  },
+  {
+    "batch": 9,
+    "chapters": [
+      "你掌握第八堂理財課了嗎？",
+      "第九堂課　拒絕走彎路，用理性抵制投資誘惑　Avoid Seduction"
+    ],
+    "error": "已連續退避 11 輪仍失敗，觸發全局中斷保護"
+  },
+  {
+    "batch": 10,
+    "chapters": [
+      "你掌握第九堂理財課了嗎？"
+    ],
+    "error": "已連續退避 12 輪仍失敗，觸發全局中斷保護"
+  }
+]

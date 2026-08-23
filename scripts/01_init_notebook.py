@@ -393,5 +393,13 @@ def init_notebook():
     else:
         print("Rule source already present in notebook. Skipping upload.")
 
+    # 自動將筆記本共用給帳號池中所有可用帳號，確保多帳號輪換時零障礙
+    try:
+        from _auth_pool import sync_notebook_collaborators
+        print("Syncing notebook collaborators with auth pool accounts...")
+        sync_notebook_collaborators(notebook_id)
+    except Exception as sync_e:
+        print(f"Notice: Collaborator sync skipped or failed ({sync_e})")
+
 if __name__ == "__main__":
     init_notebook()

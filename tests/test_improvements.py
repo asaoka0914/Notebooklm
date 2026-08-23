@@ -95,5 +95,64 @@ class TestImprovements(unittest.TestCase):
             self.assertTrue(res)
             mock_fetch.assert_not_called()
 
+    def test_run_query_circuit_breaker_on_resource_exhausted(self):
+        """測試 run_query_via_cli 在 RESOURCE_EXHAUSTED 且切換帳號失敗時直接拋出 RateLimitExhaustedError"""
+        from unittest.mock import patch, MagicMock
+        with patch.object(mod_02, 'wait_for_account_switch', return_value=False), \
+             patch('notebooklm_tools.services.auth.AuthManager'), \
+             patch('notebooklm_tools.core.client.NotebookLMClient') as mock_client_cls:
+            mock_client = MagicMock()
+            mock_client.query.side_effect = Exception("RESOURCE_EXHAUSTED: Quota exceeded")
+            mock_client_cls.return_value = mock_client
+            
+            with self.assertRaises(RateLimitExhaustedError):
+                mod_02.run_query_via_cli("fake_nb_id", "fake_prompt")
+
+    def test_batch_generate_circuit_breaker_aborts_all_batches(self):
+        """測試 run_batch_generation 在遭遇 RateLimitExhaustedError 時會寫出 failed_batches.json 並以 sys.exit(1) 中止"""
+        import tempfile
+        import shutil
+        from unittest.mock import patch
+
+        temp_dir = tempfile.mkdtemp()
+        try:
+            config_dir = os.path.join(temp_dir, "config")
+            os.makedirs(config_dir, exist_ok=True)
+            config_yaml = os.path.join(config_dir, "book_config.yaml")
+            with open(config_yaml, "w", encoding="utf-8") as f:
+                f.write("""
+notebook_id: test_nb_123
+book_title: test_circuit_breaker_book
+batch_strategy:
+  batch_delay_seconds: 0
+  batches:
+    - batch: 1
+      chapters: ["第一章"]
+    - batch: 2
+      chapters: ["第二章"]
+""")
+            with patch.object(mod_02, 'BASE_DIR', temp_dir), \
+                 patch.object(mod_02, 'run_query_via_cli', side_effect=RateLimitExhaustedError("全域配額耗盡")), \
+                 patch('sys.argv', ['02_batch_generate.py']):
+                with self.assertRaises(SystemExit) as cm:
+                    mod_02.run_batch_generation()
+                self.assertEqual(cm.exception.code, 1)
+
+            # 驗證 failed_batches.json 存在且僅處理到 batch 1 就被熔斷中斷
+            failed_json = os.path.join(temp_dir, "failed_batches.json")
+            self.assertTrue(os.path.exists(failed_json))
+            import json
+            with open(failed_json, "r", encoding="utf-8") as rf:
+                failed_data = json.load(rf)
+            self.assertEqual(len(failed_data), 1)
+            self.assertEqual(failed_data[0]["batch"], 1)
+
+            # 驗證 batch 2 根本沒有被嘗試執行（沒有輸出 batch_02.json）
+            batch_02 = os.path.join(temp_dir, "raw_outputs", "test_circuit_breaker_book", "batch_02.json")
+            self.assertFalse(os.path.exists(batch_02))
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
 if __name__ == '__main__':
     unittest.main()
+

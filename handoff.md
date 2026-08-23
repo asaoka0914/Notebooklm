@@ -1,19 +1,22 @@
 # Handoff (交接紀錄)
 
-- **最後更新時間**: 2026-08-22 09:33
+- **最後更新時間**: 2026-08-23 13:48
 - **最後操作裝置**: 家裡電腦 (AsaokaHTPC)
-- **當前狀態**: 🟢 完成帳號池 Token 優先複用（防 Chrome CDP 衝突）與 CDP 失敗引導優化、單元測試 100% 通過、全域技能同步與 GitHub 備份完畢。
+- **當前狀態**: 🟢 完成多帳號 Token 身分校驗、CDP headless 認證修復、全域 Circuit Breaker 致命中斷保護與第 3 備援帳號擴充，全套單元測試 100% 通過，全域技能同步與 GitHub 備份完畢。
 - **目前做到哪**: 
-  - **帳號池認證順序優化（Token 優先複用）**：
-    - 於 `scripts/_auth_pool.py` 實作 `is_current_token_valid()`，在決定是否啟動 Chrome CDP 之前，優先檢測本地現存快取 Token 的有效性。
-    - 若快取 Token 依然有效，直接複用並通過認證，完全不調用 Chrome 亦不開啟 Port 9223，徹底解決日常開著一般 Chrome 瀏覽器時遭遇 CDP 端口衝突與誤判冷卻問題。
-  - **CDP 連線失敗明確引導**：
-    - 於 `scripts/_auth_utils.py` 優化 `_launch_chrome_and_authenticate()` 的報錯訊息，清晰提示「若目前已有一般 Chrome 視窗開著，請先關閉所有 Chrome 視窗後再重試」。
+  - **多帳號 Token 快取身份校驗（防偷換帳號）**：
+    - 於 `scripts/_auth_pool.py` 之 `is_current_token_valid()` 與 `ensure_auth_pool()` 加入 `expected_email` 比對，確保快取 Token 與目標帳號 Email 一致才複用，杜絕偷換帳號與誤判問題。
+  - **修復 Chrome CDP 認證與 Profile 選取**：
+    - 於 `scripts/_auth_utils.py` 之 `_launch_chrome_and_authenticate` 改用 `extract_cookies_via_existing_cdp` 與 `AuthManager.save_profile`，修復原本 `run_headless_auth(port=...)` 引發 `TypeError` 導致認證默默失敗的缺陷。
+    - 於 `_select_chrome_profile_interactive` 加入 `target_email` 支援，避免非互動終端環境下盲目 fallback 至 `Default`。
+  - **實作全域 Circuit Breaker 致命中斷保護（終止狂洗後續 Batch）**：
+    - 於 `scripts/02_batch_generate.py` 之 `run_query_via_cli()` 中，當 `wait_for_account_switch()` 失敗時改為直接拋出 `RateLimitExhaustedError`。
+    - 於 `run_batch_generation()` 攔截到 `RateLimitExhaustedError` 時寫出 `failed_batches.json` 並調用 `sys.exit(1)` 真正終止整個批次生成任務，徹底解決原程式跳過單個 Batch 卻繼續狂試後續 Batch 的漏洞。
+  - **擴充帳號池至 3 組可用帳號**：
+    - 在 `auth_pool/pool_config.yaml` 中新增第 3 組備援帳號 `jessie3408h_gmail`（Profile 5 / Amy）。
   - **測試閉環與全域部署**：
-    - 於 `tests/test_improvements.py` 補齊帳號池略過 Chrome 啟動之單元測試，6 項測試 100% 通過。
+    - 於 `tests/test_improvements.py` 補齊熔斷中斷與 Batch 隔離單元測試，全套 38 項測試 100% 通過。
     - 執行 `install.ps1` 同步部署至 Gemini (`C:\Users\AsaokaHTPC\.gemini\config\skills\book-reader`) 與 Claude (`C:\Users\AsaokaHTPC\.claude\skills\book-reader`) 全域目錄。
 - **下一次開工建議**: 
-  - 可直接呼叫 `book-reader` 技能跑下一本書籍（如《博格談基金》）之章節批次摘要與全書 6 模組導讀。
-  - 遇到需要切換帳號或 Token 完全過期時，依提示暫時關閉 Chrome 視窗即可秒速刷新認證。
-
-
+  - 可直接呼叫 `book-reader` 技能跑下一本書籍之章節批次摘要與全書 6 模組導讀。
+  - 遇到配額耗盡時，系統會自動在 3 組帳號池間無縫輪換並自動共用協作者；若所有帳號皆達上限，會安全存檔並透過 Circuit Breaker 致命中斷退出，下次執行可自動斷點續傳。

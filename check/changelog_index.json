@@ -1,5 +1,35 @@
 [
   {
+    "time": "2026-08-23 13:43",
+    "title": "實作全域 Circuit Breaker 致命中斷保護（終止狂洗後續 Batch）與擴充第三備援帳號",
+    "files": [
+      "scripts/02_batch_generate.py",
+      "auth_pool/pool_config.yaml",
+      "tests/test_improvements.py"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-23 08:38",
+    "title": "修復多帳號 Token 快取身份校驗、CDP 認證調用與非互動 Profile 選取死循環 Bug",
+    "files": [
+      "scripts/_auth_utils.py",
+      "scripts/_auth_pool.py"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-22 22:36",
+    "title": "實現 NotebookLM 筆記本多帳號自動共用 (Auto-Share) 機制與全域技能同步",
+    "files": [
+      "scripts/_auth_pool.py",
+      "scripts/01_init_notebook.py",
+      "scripts/02_batch_generate.py",
+      "SKILL.md"
+    ],
+    "status": "✅完成"
+  },
+  {
     "time": "2026-08-22 09:31",
     "title": "優化帳號池認證順序（Token 優先複用防 Chrome 衝突）與 CDP 失敗指引",
     "files": [
