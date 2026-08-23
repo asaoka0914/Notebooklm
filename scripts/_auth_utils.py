@@ -103,28 +103,38 @@ def _launch_chrome_and_authenticate(profile_dir, timeout_sec=60):
 
     print(f"🚀 啟動 Chrome 偵錯模式 (Port 9223)，使用身分: {profile_dir} ...")
     user_data_root = _get_chrome_user_data_root()
-    chrome_proc = subprocess.Popen([
-        chrome_path,
-        '--remote-debugging-port=9223',
-        '--no-first-run',
-        '--no-default-browser-check',
-        f'--user-data-dir={user_data_root}',
-        f'--profile-directory={profile_dir}',
-    ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
+    import urllib.request
+    
+    # 優先檢查 Port 9223 是否已經有開好的 Chrome 偵錯埠
     cdp_ready = False
-    for i in range(15):
-        time.sleep(1)
-        try:
-            import urllib.request
-            urllib.request.urlopen('http://127.0.0.1:9223/json', timeout=2)
-            cdp_ready = True
-            break
-        except Exception:
-            pass
+    try:
+        urllib.request.urlopen('http://127.0.0.1:9223/json', timeout=1)
+        cdp_ready = True
+        chrome_proc = None
+        print("ℹ️ 偵測到現有 Chrome 偵錯連線已就緒 (Port 9223)，直接進行 Token 提取...")
+    except Exception:
+        print(f"🚀 啟動 Chrome 偵錯模式 (Port 9223)，使用身分: {profile_dir} ...")
+        chrome_proc = subprocess.Popen([
+            chrome_path,
+            '--remote-debugging-port=9223',
+            '--no-first-run',
+            '--no-default-browser-check',
+            f'--user-data-dir={user_data_root}',
+            f'--profile-directory={profile_dir}',
+        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        for i in range(15):
+            time.sleep(1)
+            try:
+                urllib.request.urlopen('http://127.0.0.1:9223/json', timeout=2)
+                cdp_ready = True
+                break
+            except Exception:
+                pass
 
     if not cdp_ready:
-        chrome_proc.terminate()
+        if chrome_proc:
+            chrome_proc.terminate()
         print("❌ Chrome CDP 無法就緒（若目前已有一般 Chrome 視窗開著，請先關閉所有 Chrome 視窗後再重試）")
         return False
 
