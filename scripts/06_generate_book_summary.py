@@ -164,7 +164,7 @@ def generate_book_summary(notebook_id=None, book_title=None, author=''):
         f"author: {author or '未知'}",
         "tags: [書籍摘要, 核心心智模型, 深度導讀]",
         f"sources: [《{book_title}》, {author or '作者'}]",
-        f"original_ref: [[raw/articles/zh/{safe_slug}|查看完整章節重點精華]]",
+        f'original_ref: "[[raw/articles/zh/{safe_slug}|查看完整章節重點精華]]"',
         "---",
         "",
     ]
