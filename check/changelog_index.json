@@ -1,5 +1,25 @@
 [
   {
+    "time": "2026-08-23 21:17",
+    "title": "修復 EPUB 封面提取誤取封底圖 (backcover.jpg) Bug 並重新組裝與歸檔",
+    "files": [
+      "scripts/01_init_notebook.py",
+      "raw/articles/zh/asset-allocation-buffett-way.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-08-23 20:58",
+    "title": "完成《你沒有學到的資產配置：巴菲特默默在做的事》一條龍生成、QC 檢驗與 Obsidian 知識庫概念歸檔",
+    "files": [
+      "scripts/04_qc_check.py",
+      "raw/articles/zh/asset-allocation-buffett-way.md",
+      "wiki/summaries/asset-allocation-buffett-way-summary.md",
+      "wiki/concepts/"
+    ],
+    "status": "✅完成"
+  },
+  {
     "time": "2026-08-23 14:33",
     "title": "解決新書初始化 Notebook_id 失效問題並重新上傳書籍檔案",
     "files": [

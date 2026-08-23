@@ -64,12 +64,24 @@ def extract_epub_cover(book_path, output_cover_path):
             cover_href = None
             manifest = opf_root.find('.//{http://www.idpf.org/2007/opf}manifest')
             if manifest is not None:
+                # 優先順序 1: 具有 properties="cover-image" 的項目
                 for item in manifest.findall('{http://www.idpf.org/2007/opf}item'):
-                    item_id = item.attrib.get('id', '').lower()
                     properties = item.attrib.get('properties', '').lower()
-                    if 'cover-image' in properties or 'cover' in item_id:
+                    href = item.attrib.get('href', '').lower()
+                    if 'cover-image' in properties and not href.endswith('.xhtml') and not href.endswith('.html'):
                         cover_href = item.attrib.get('href')
                         break
+
+                # 優先順序 2: manifest 中 id 或 href 包含 cover 且排除 backcover/back_cover 的圖片
+                if not cover_href:
+                    for item in manifest.findall('{http://www.idpf.org/2007/opf}item'):
+                        item_id = item.attrib.get('id', '').lower()
+                        href = item.attrib.get('href', '').lower()
+                        if ('backcover' in item_id or 'back_cover' in item_id or 'backcover' in href or 'back_cover' in href):
+                            continue
+                        if ('cover' in item_id or 'cover' in href) and (href.endswith('.jpg') or href.endswith('.png') or href.endswith('.jpeg')):
+                            cover_href = item.attrib.get('href')
+                            break
 
             if cover_href and not cover_href.endswith('.xhtml') and not cover_href.endswith('.html'):
                 img_zip_path = os.path.normpath(os.path.join(opf_dir, cover_href)).replace('\\', '/')
@@ -80,16 +92,17 @@ def extract_epub_cover(book_path, output_cover_path):
                 print(f"✅ Successfully extracted EPUB cover to {output_cover_path}")
                 return True
             else:
-                # 嘗試直接從 manifest 找 image/cover.jpg
-                for item in manifest.findall('{http://www.idpf.org/2007/opf}item'):
-                    href = item.attrib.get('href', '')
-                    if ('cover' in href.lower() or 'cover' in item.attrib.get('id', '').lower()) and (href.endswith('.jpg') or href.endswith('.png') or href.endswith('.jpeg')):
-                        img_zip_path = os.path.normpath(os.path.join(opf_dir, href)).replace('\\', '/')
-                        img_data = z.read(img_zip_path)
+                # 嘗試直接從 zip 搜尋 cover.jpg (排除 backcover)
+                for name in z.namelist():
+                    name_lower = name.lower()
+                    if ('backcover' in name_lower or 'back_cover' in name_lower):
+                        continue
+                    if name_lower.endswith(('cover.jpg', 'cover.jpeg', 'cover.png')):
+                        img_data = z.read(name)
                         os.makedirs(os.path.dirname(output_cover_path), exist_ok=True)
                         with open(output_cover_path, 'wb') as img_out:
                             img_out.write(img_data)
-                        print(f"✅ Successfully extracted EPUB cover image to {output_cover_path}")
+                        print(f"✅ Successfully extracted EPUB cover image from zip to {output_cover_path}")
                         return True
     except Exception as e:
         print(f"⚠️ Failed to extract EPUB cover: {e}")

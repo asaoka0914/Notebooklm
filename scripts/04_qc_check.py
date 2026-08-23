@@ -118,6 +118,15 @@ def run_single_qc_pass(report_path):
         lines = chap.strip().split('\n')
         h2_title = lines[0].strip('# ').strip() if lines else f"Chapter {c_idx}"
         found_chapter_titles.append(h2_title)
+
+        # 同步擷取區塊內的 H3 (###) 子小節標題，避免巢狀章節被誤判為缺漏
+        for line in lines[1:]:
+            line_str = line.strip()
+            if line_str.startswith("### ") and not any(tag in line_str for tag in ["📌", "💡", "📚", "核心概念", "重點擷取"]):
+                h3_title = line_str.lstrip('#').strip()
+                if h3_title and h3_title not in found_chapter_titles:
+                    found_chapter_titles.append(h3_title)
+
         chap_len = len(chap)
 
         # 判定是否為 Part/部/篇/卷 或純章節大標題（其下包含子小節）

@@ -223,21 +223,30 @@ def is_current_token_valid(expected_email: str = None) -> bool:
 
 def fetch_token_headless(account: dict, timeout_sec: int = 60) -> bool:
     """
-    以 email 動態查找 Chrome Profile 目錄，啟動 headless Chrome 並透過 CDP 快取新 Token。
+    優先使用獨立資料夾隔離法 (~/.notebooklm/chrome_profiles/<account_id>)，
+    若不存在則動態比對本機 Chrome Profile 目錄，啟動 headless Chrome 並透過 CDP 快取新 Token。
     """
     from _auth_utils import _launch_chrome_and_authenticate
     email = account.get("email")
+    acc_id = account.get("id")
     if not email:
         print(f"❌ 帳號設定缺少 email: {account}")
         return False
 
+    # 1. 優先檢查是否具有獨立隔離 Profile 目錄
+    isolated_profile_dir = Path.home() / ".notebooklm" / "chrome_profiles" / acc_id
+    if isolated_profile_dir.exists():
+        print(f"🔑 正在為帳號 [{acc_id}] 使用獨立隔離目錄 ({isolated_profile_dir}) 取得認證 Token...")
+        return _launch_chrome_and_authenticate(profile_dir=None, timeout_sec=timeout_sec, custom_user_data_dir=str(isolated_profile_dir))
+
+    # 2. 次選本機 Chrome Profile 目錄比對
     profile_dir = find_chrome_profile_by_email(email)
     if not profile_dir:
         print(f"⚠️ 本機 Chrome 尚未登入帳號 [{email}] 或無法比對 Profile，跳過此帳號。")
         return False
 
-    print(f"🔑 正在為帳號 [{account['id']}] ({email} -> Profile: {profile_dir}) 取得認證 Token...")
-    success = _launch_chrome_and_authenticate(profile_dir, timeout_sec=timeout_sec)
+    print(f"🔑 正在為帳號 [{acc_id}] ({email} -> Profile: {profile_dir}) 取得認證 Token...")
+    success = _launch_chrome_and_authenticate(profile_dir=profile_dir, timeout_sec=timeout_sec)
     return success
 
 def get_shortest_cooldown_wait_seconds(pool_status: dict, config: dict) -> int | None:
@@ -496,5 +505,52 @@ def pool_status_report():
         print(f"{acc_id:<20} {email:<28} {status_label:<10} {stat.get('total_requests', 0):<10} {cooldown}")
     print("="*70 + "\n")
 
+def login_isolated_account(account_id: str) -> bool:
+    """
+    為指定帳號啟動獨立隔離目錄的 Chrome 視窗供使用者登入一次。
+    """
+    config = load_pool_config()
+    accounts = [acc for acc in config.get("accounts", []) if acc.get("enabled", True)]
+    target_acc = next((acc for acc in accounts if acc["id"] == account_id), None)
+    if not target_acc:
+        print(f"❌ 帳號池中找不到 ID 為 [{account_id}] 的帳號。")
+        return False
+
+    isolated_profile_dir = Path.home() / ".notebooklm" / "chrome_profiles" / account_id
+    isolated_profile_dir.mkdir(parents=True, exist_ok=True)
+    print(f"🚀 正在為帳號 [{account_id}] ({target_acc.get('email')}) 開啟獨立登入視窗...")
+    print(f"   目錄：{isolated_profile_dir}")
+    print("   請在彈出的 Chrome 瀏覽器中登入該 Google 帳號並進入 NotebookLM 首頁，登入完成後關閉視窗即可。")
+
+    from _auth_utils import _find_chrome_path
+    chrome_path = shutil.which('chrome') or _find_chrome_path()
+    if not chrome_path:
+        print("❌ 無法找到 Chrome。")
+        return False
+
+    cmd = [
+        chrome_path,
+        '--no-first-run',
+        '--no-default-browser-check',
+        f'--user-data-dir={isolated_profile_dir}',
+        'https://notebooklm.google.com'
+    ]
+    proc = subprocess.Popen(cmd)
+    proc.wait()
+    print(f"✅ 帳號 [{account_id}] 獨立 Profile 設定完畢！未來可 100% 背景無痕提取 Token。")
+    return True
+
 if __name__ == "__main__":
-    pool_status_report()
+    import argparse
+    parser = argparse.ArgumentParser(description="NotebookLM Auth Pool Manager")
+    parser.add_argument("--status", action="store_true", help="Show pool status report")
+    parser.add_argument("--login", type=str, help="Login an account into its isolated profile directory (e.g. --login gwa20080808_gmail)")
+    parser.add_argument("--switch", type=str, help="Switch active account by ID")
+    args = parser.parse_args()
+
+    if args.login:
+        login_isolated_account(args.login)
+    elif args.switch:
+        switch_account_by_id(args.switch)
+    else:
+        pool_status_report()

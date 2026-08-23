@@ -4,6 +4,15 @@ import time
 import subprocess
 import shutil
 
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+else:
+    sys.stdout.reconfigure(encoding='utf-8')
+
 def _find_chrome_path():
     """在 Windows 上尋找 Chrome 可執行檔。"""
     import glob
@@ -84,10 +93,10 @@ def _select_chrome_profile_interactive(target_email: str = None):
             return selected['dir']
         print("輸入無效，請重新輸入。")
 
-def _launch_chrome_and_authenticate(profile_dir, timeout_sec=60):
+def _launch_chrome_and_authenticate(profile_dir=None, timeout_sec=60, custom_user_data_dir=None):
     """
     強制啟動指定 Chrome Profile 身分的偵錯模式，透過 CDP 取得並快取新的認證 Token。
-    共用於 ensure_auth() 自動恢復與 switch_google_account_interactive() 主動切換帳號兩處。
+    共用於 ensure_auth() 自動恢復、switch_google_account_interactive() 與獨立 Profile 目錄。
     """
     try:
         from notebooklm_tools.services.auth import AuthManager
@@ -101,8 +110,9 @@ def _launch_chrome_and_authenticate(profile_dir, timeout_sec=60):
         print("❌ 無法找到 Chrome。")
         return False
 
-    print(f"🚀 啟動 Chrome 偵錯模式 (Port 9223)，使用身分: {profile_dir} ...")
-    user_data_root = _get_chrome_user_data_root()
+    user_data_root = custom_user_data_dir or _get_chrome_user_data_root()
+    display_info = f"目錄: {user_data_root}" if custom_user_data_dir else f"身分: {profile_dir}"
+    print(f"🚀 啟動 Chrome 偵錯模式 (Port 9223)，使用 {display_info} ...")
     import urllib.request
     
     # 優先檢查 Port 9223 是否已經有開好的 Chrome 偵錯埠
@@ -113,15 +123,20 @@ def _launch_chrome_and_authenticate(profile_dir, timeout_sec=60):
         chrome_proc = None
         print("ℹ️ 偵測到現有 Chrome 偵錯連線已就緒 (Port 9223)，直接進行 Token 提取...")
     except Exception:
-        print(f"🚀 啟動 Chrome 偵錯模式 (Port 9223)，使用身分: {profile_dir} ...")
-        chrome_proc = subprocess.Popen([
+        cmd_args = [
             chrome_path,
             '--remote-debugging-port=9223',
+            '--headless=new',
+            '--remote-allow-origins=*',
             '--no-first-run',
             '--no-default-browser-check',
+            '--disable-extensions',
             f'--user-data-dir={user_data_root}',
-            f'--profile-directory={profile_dir}',
-        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        ]
+        if profile_dir:
+            cmd_args.append(f'--profile-directory={profile_dir}')
+
+        chrome_proc = subprocess.Popen(cmd_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         for i in range(15):
             time.sleep(1)

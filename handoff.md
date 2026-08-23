@@ -1,25 +1,17 @@
 # Handoff (交接紀錄)
 
-- **最後更新**: 2026-08-23 14:34
+- **最後更新**: 2026-08-23 21:23
 - **最後操作裝置**: 家裡電腦 (AsaokaHTPC)
-- **當前狀態**: 🟢 完成新書《為什麼你的退休金只有別人的一半》 Notebook_id 重新初始化與 EPUB 上傳，並成功啟動 batch background 任務。
-- **目前做到哪**: 
-  - **新書初始化與上傳**:
-    - 已重新建立新的 Notebook (`cdef6c8f...`) 並更新 `book_config.yaml`。
-    - 成功上傳新書 EPUB 與核心概念 markdown。
-    - 成功觸發 `02_batch_generate.py` 背景擷取任務。
-    - 於 `scripts/_auth_pool.py` 之 `is_current_token_valid()` 與 `ensure_auth_pool()` 加入 `expected_email` 比對，確保快取 Token 與目標帳號 Email 一致才複用，杜絕偷換帳號與誤判問題。
-  - **修復 Chrome CDP 認證與 Profile 選取**：
-    - 於 `scripts/_auth_utils.py` 之 `_launch_chrome_and_authenticate` 改用 `extract_cookies_via_existing_cdp` 與 `AuthManager.save_profile`，修復原本 `run_headless_auth(port=...)` 引發 `TypeError` 導致認證默默失敗的缺陷。
-    - 於 `_select_chrome_profile_interactive` 加入 `target_email` 支援，避免非互動終端環境下盲目 fallback 至 `Default`。
-  - **實作全域 Circuit Breaker 致命中斷保護（終止狂洗後續 Batch）**：
-    - 於 `scripts/02_batch_generate.py` 之 `run_query_via_cli()` 中，當 `wait_for_account_switch()` 失敗時改為直接拋出 `RateLimitExhaustedError`。
-    - 於 `run_batch_generation()` 攔截到 `RateLimitExhaustedError` 時寫出 `failed_batches.json` 並調用 `sys.exit(1)` 真正終止整個批次生成任務，徹底解決原程式跳過單個 Batch 卻繼續狂試後續 Batch 的漏洞。
-  - **擴充帳號池至 3 組可用帳號**：
-    - 在 `auth_pool/pool_config.yaml` 中新增第 3 組備援帳號 `jessie3408h_gmail`（Profile 5 / Amy）。
-  - **測試閉環與全域部署**：
-    - 於 `tests/test_improvements.py` 補齊熔斷中斷與 Batch 隔離單元測試，全套 38 項測試 100% 通過。
-    - 執行 `install.ps1` 同步部署至 Gemini (`C:\Users\AsaokaHTPC\.gemini\config\skills\book-reader`) 與 Claude (`C:\Users\AsaokaHTPC\.claude\skills\book-reader`) 全域目錄。
-- **下一次開工建議**: 
-  - 可直接呼叫 `book-reader` 技能跑下一本書籍之章節批次摘要與全書 6 模組導讀。
-  - 遇到配額耗盡時，系統會自動在 3 組帳號池間無縫輪換並自動共用協作者；若所有帳號皆達上限，會安全存檔並透過 Circuit Breaker 致命中斷退出，下次執行可自動斷點續傳。
+- **當前狀態**: 🟢 完成多 Profile 獨立隔離法實作、QC 涵蓋度比對加固與 EPUB 封面防呆修復，並全數通過驗收。
+- **程式修改與核心成果**:
+  - **1. 多 Profile 獨立資料夾隔離法 (`~/.notebooklm/chrome_profiles/<account_id>`)**：
+    - 於 `scripts/_auth_pool.py` 實作獨立目錄優先判定與 `--login <account_id>` 一次性登入 CLI。
+    - 於 `scripts/_auth_utils.py` 支援 `custom_user_data_dir` 與 Chrome `--headless=new` 參數，100% 徹底解決 Windows Chrome 搶鎖 (`Profile Lock`) 與日常開著 Chrome 衝突問題。
+  - **2. 04_qc_check.py 支援 H3 巢狀標題提取**：
+    - 解決區塊內子小節被誤判缺漏的問題，確保 Ground Truth TOC 1對1核對精準度。
+  - **3. 01_init_notebook.py EPUB 封面提取防呆**：
+    - 優先比對 `properties="cover-image"` 並強制排除 `backcover` / `back_cover`，徹底解決封面誤取封底圖問題。
+  - **4. 全域技能同步**：
+    - 所有修改後之 Python 腳本均已同步更新至全域技能目錄（`~/.gemini/config/skills/book-reader/`）。
+- **下一次開工建議**:
+  - 可直接呼叫 `book-reader` 整理新書籍。若需為備用帳號建立獨立無痕 Profile，只需執行 `python scripts/_auth_pool.py --login <account_id>` 一次性登入即可。
