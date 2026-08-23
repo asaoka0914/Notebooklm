@@ -240,13 +240,79 @@ def fetch_token_headless(account: dict, timeout_sec: int = 60) -> bool:
     success = _launch_chrome_and_authenticate(profile_dir, timeout_sec=timeout_sec)
     return success
 
+def get_shortest_cooldown_wait_seconds(pool_status: dict, config: dict) -> int | None:
+    """
+    計算帳號池中『最快解鎖』的帳號還需等待的秒數。
+    若無帳號在冷卻或無設定則回傳 None。
+    """
+    accounts = [acc for acc in config.get("accounts", []) if acc.get("enabled", True)]
+    if not accounts:
+        return None
+    
+    status_accounts = pool_status.get("accounts", {})
+    min_wait_seconds = None
+
+    for acc in accounts:
+        acc_stat = status_accounts.get(acc["id"], {})
+        cooldown_until_str = acc_stat.get("cooldown_until")
+        if cooldown_until_str:
+            try:
+                cooldown_until = datetime.fromisoformat(cooldown_until_str)
+                diff = (cooldown_until - datetime.now()).total_seconds()
+                if diff > 0:
+                    if min_wait_seconds is None or diff < min_wait_seconds:
+                        min_wait_seconds = diff
+                else:
+                    # 已經過期，代表有帳號可以立即解鎖
+                    return 0
+            except Exception:
+                pass
+    return int(min_wait_seconds) if min_wait_seconds is not None else None
+
+def wait_for_cooldown_recovery(pool_status: dict, config: dict, max_wait_seconds: int = 2400) -> bool:
+    """
+    當所有帳號都在冷卻期時，自動倒數等待最快解鎖的帳號，直到解鎖後自動 Resume。
+    """
+    import time
+    wait_sec = get_shortest_cooldown_wait_seconds(pool_status, config)
+    if wait_sec is None:
+        return False
+    
+    if wait_sec <= 0:
+        print("⏰ 偵測到已有帳號冷卻時間屆滿，自動解除鎖定並重試...")
+        return True
+
+    if wait_sec > max_wait_seconds:
+        print(f"⚠️ 最短冷卻等待時間過長 ({wait_sec // 60} 分鐘 > 最大等待 {max_wait_seconds // 60} 分鐘)，放棄自動等待。")
+        return False
+
+    print("\n" + "=" * 70)
+    print(f"⏳ [Auto-Cooldown Wait] 帳號池所有帳號均在冷卻中。")
+    print(f"🔄 系統啟動自動等待機制，將在 {wait_sec + 5} 秒後（約 {(wait_sec + 5) // 60 + 1} 分鐘）自動喚醒並重試...")
+    print("=" * 70 + "\n")
+
+    # 每 10 秒印一次進度，防止終端被當作死當
+    total_wait = wait_sec + 5
+    elapsed = 0
+    while elapsed < total_wait:
+        sleep_step = min(10, total_wait - elapsed)
+        time.sleep(sleep_step)
+        elapsed += sleep_step
+        remaining = total_wait - elapsed
+        if remaining > 0 and elapsed % 30 == 0:
+            print(f"⏳ 正在等待冷卻恢復... 剩餘約 {remaining} 秒")
+
+    print("🎉 冷卻時間已過！正在自動喚醒並切換帳號重試...")
+    return True
+
 def ensure_auth_pool() -> bool:
     """
     帳號池主入口：
     1. 載入設定與狀態檔。
     2. 若當前已有有效 Token，直接使用（避免已開 Chrome 造成 CDP 衝突）。
     3. 若無有效 Token 或帳號在冷卻中，依序嘗試 headless 取 Token（最多輪換一圈）。
-    4. 若所有帳號皆失敗，自動 Fallback 回退至單帳號互動式 ensure_auth()。
+    4. 若所有帳號皆冷卻，自動進入等待倒數（Auto-Cooldown Wait），時間到自動重試！
+    5. 若所有帳號皆失敗，自動 Fallback 回退至單帳號互動式 ensure_auth()。
     """
     config = load_pool_config()
     accounts = [acc for acc in config.get("accounts", []) if acc.get("enabled", True)]
@@ -281,7 +347,6 @@ def ensure_auth_pool() -> bool:
         if not current_acc:
             current_acc = select_next_account(pool_status, config, exclude_current=False)
             if not current_acc:
-                print("❌ 帳號池無可用帳號。")
                 break
             pool_status["current_account"] = current_acc["id"]
             save_pool_status(pool_status)
@@ -309,6 +374,11 @@ def ensure_auth_pool() -> bool:
             current_acc = rotate_account(pool_status, config, set_cooldown=False)
             if not current_acc:
                 break
+
+    # 2.5 檢查是否所有帳號都在冷卻期中，若是則啟動自動等待機制（Auto-Cooldown Wait）
+    if wait_for_cooldown_recovery(pool_status, config):
+        # 重新遞迴呼叫自身一次（此時已有帳號過期解鎖）
+        return ensure_auth_pool()
 
     # 3. 全部失敗 → fallback 到 _auth_utils.ensure_auth()
     print("⚠️ 帳號池所有帳號均認證失敗或冷卻中，啟動優雅降級 (Fallback 至單帳號互動選單)...")

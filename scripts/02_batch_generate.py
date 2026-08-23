@@ -126,22 +126,20 @@ def wait_for_account_switch(notebook_id=None, timeout_sec=300):
         except Exception:
             pass
 
-    # 1. 嘗試透過帳號池自動輪換
+    # 1. 優先透過帳號池自動輪換或自動等待冷卻
     try:
-        from _auth_pool import load_pool_config, get_or_init_status, rotate_account, fetch_token_headless
-        config = load_pool_config()
-        if config and config.get("accounts"):
-            pool_status = get_or_init_status()
-            print("🔄 正在嘗試自動輪換至帳號池中的下一個可用個人帳號...")
-            next_acc = rotate_account(pool_status, config)
-            if next_acc and fetch_token_headless(next_acc):
-                from notebooklm_tools.core.auth import check_auth
-                res = check_auth(profile='default', live=True)
-                if getattr(res, 'valid', False):
-                    print(f"🎉 [Account Rotated] 已自動切換至帳號池身分 [{next_acc['id']}]！自動 Resume 重試...")
-                    return True
+        from _auth_pool import ensure_auth_pool, sync_notebook_collaborators
+        from notebooklm_tools.core.auth import check_auth
+        print("🔄 正在嘗試自動輪換至帳號池中的下一個可用個人帳號（若全數冷卻則自動等待解鎖）...")
+        if ensure_auth_pool():
+            res = check_auth('default', live=True)
+            if getattr(res, 'valid', False):
+                print("🎉 [Account Switched] 帳號切換/解鎖成功！新憑證已生效。")
+                if notebook_id:
+                    sync_notebook_collaborators(notebook_id)
+                return True
     except Exception as e:
-        print(f"⚠️ 自動輪換帳號池失敗 ({e})，切換為手動選擇...")
+        print(f"Notice: 自動輪換過程拋出異常: {e}，切換為手動選擇...")
 
     # 2. 互動式手動切換
     if switch_google_account_interactive(timeout_sec=60):
