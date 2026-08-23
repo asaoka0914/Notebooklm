@@ -438,6 +438,33 @@ def sync_notebook_collaborators(notebook_id: str) -> bool:
         print(f"⚠️ [Auto-Share] 自動同步筆記本協作者失敗 ({e})，略過此步驟。")
         return False
 
+def switch_account_by_id(account_id: str) -> bool:
+    """
+    指定帳號 ID 進行強制切換並提取該帳號之 Token。
+    """
+    config = load_pool_config()
+    accounts = [acc for acc in config.get("accounts", []) if acc.get("enabled", True)]
+    target_acc = next((acc for acc in accounts if acc["id"] == account_id), None)
+    if not target_acc:
+        print(f"❌ 帳號池中找不到 ID 為 [{account_id}] 的帳號。")
+        return False
+
+    pool_status = get_or_init_status()
+    pool_status["current_account"] = target_acc["id"]
+    save_pool_status(pool_status)
+
+    print(f"🔄 正在為指定帳號 [{target_acc['id']}] ({target_acc.get('email')}) 提取認證 Token...")
+    if fetch_token_headless(target_acc):
+        status_accounts = pool_status.setdefault("accounts", {})
+        status_accounts[target_acc["id"]]["last_used"] = datetime.now().isoformat()
+        status_accounts[target_acc["id"]]["status"] = "active"
+        save_pool_status(pool_status)
+        print(f"✅ 成功切換至帳號 [{target_acc['id']}]！")
+        return True
+    else:
+        print(f"❌ 切換至帳號 [{target_acc['id']}] 失敗。")
+        return False
+
 def pool_status_report():
     """印出帳號池目前狀態（CLI 輔助檢視）。"""
     config = load_pool_config()
