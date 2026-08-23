@@ -155,15 +155,18 @@ def generate_book_summary(notebook_id=None, book_title=None, author=''):
     if not safe_slug:
         safe_slug = "book-summary"
 
-    # 自動拼裝標準 YAML Frontmatter
+    # 自動拼裝標準 YAML Frontmatter（所有 tags 與 sources 項目均強制使用雙引號包覆，防止 0050 等純數字/以零開頭代號被 YAML 解析器誤轉為整數）
+    default_tags = ["書籍摘要", "核心心智模型", "深度導讀"]
+    quoted_tags = ", ".join([f'"{t}"' for t in default_tags])
+    
     frontmatter_lines = [
         "---",
-        f"slug: {safe_slug}",
-        "type: book-summary",
-        f"title: 《{book_title}》",
-        f"author: {author or '未知'}",
-        "tags: [書籍摘要, 核心心智模型, 深度導讀]",
-        f"sources: [《{book_title}》, {author or '作者'}]",
+        f'slug: "{safe_slug}"',
+        'type: "book-summary"',
+        f'title: "《{book_title}》"',
+        f'author: "{author or "未知"}"',
+        f'tags: [{quoted_tags}]',
+        f'sources: ["《{book_title}》", "{author or "作者"}"]',
         f'original_ref: "[[raw/articles/zh/{safe_slug}|查看完整章節重點精華]]"',
         "---",
         "",
