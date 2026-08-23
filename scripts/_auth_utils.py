@@ -36,11 +36,11 @@ def list_chrome_profiles_with_email():
         print(f"⚠️  無法讀取 Chrome Profile 清單 ({e})，將使用預設 Default。")
     return profiles
 
-def _select_chrome_profile_interactive():
+def _select_chrome_profile_interactive(target_email: str = None):
     """
     列出所有偵測到的 Chrome 帳號身分（Profile 資料夾 + 登入 Email），
     互動式讓使用者輸入編號選擇要用哪個身分認證。
-    支援環境變數 NOTEBOOKLM_CHROME_PROFILE 直接指定，跳過互動（適合非互動式自動化執行）。
+    支援 target_email 自動比對、環境變數 NOTEBOOKLM_CHROME_PROFILE 直接指定。
     """
     env_override = os.environ.get('NOTEBOOKLM_CHROME_PROFILE')
     if env_override:
@@ -50,6 +50,13 @@ def _select_chrome_profile_interactive():
     profiles = list_chrome_profiles_with_email()
     if not profiles:
         return 'Default'
+
+    if target_email:
+        target_email_clean = target_email.strip().lower()
+        for p in profiles:
+            if p.get('email', '').strip().lower() == target_email_clean:
+                return p['dir']
+
     if len(profiles) == 1:
         return profiles[0]['dir']
 
@@ -80,11 +87,11 @@ def _select_chrome_profile_interactive():
 def _launch_chrome_and_authenticate(profile_dir, timeout_sec=60):
     """
     強制啟動指定 Chrome Profile 身分的偵錯模式，透過 CDP 取得並快取新的認證 Token。
-    共用於 ensure_auth() 自動恢復與 switch_google_account_interactive() 主動切換帳號兩处。
+    共用於 ensure_auth() 自動恢復與 switch_google_account_interactive() 主動切換帳號兩處。
     """
     try:
-        from notebooklm_tools.core.auth import save_tokens_to_cache
-        from notebooklm_tools.utils.auth_browser import run_headless_auth
+        from notebooklm_tools.services.auth import AuthManager
+        from notebooklm_tools.utils.cdp import extract_cookies_via_existing_cdp
     except ImportError:
         print("Notice: notebooklm_tools inner auth modules not available.")
         return False
@@ -121,21 +128,35 @@ def _launch_chrome_and_authenticate(profile_dir, timeout_sec=60):
         print("❌ Chrome CDP 無法就緒（若目前已有一般 Chrome 視窗開著，請先關閉所有 Chrome 視窗後再重試）")
         return False
 
-    tokens = None
+    auth_data = None
     try:
-        tokens = run_headless_auth(port=9223, profile_name='default', timeout=timeout_sec)
+        auth_data = extract_cookies_via_existing_cdp(
+            cdp_url="http://127.0.0.1:9223",
+            wait_for_login=True,
+            login_timeout=timeout_sec
+        )
     except Exception as e:
-        print(f"Headless auth execution failed: {e}")
+        print(f"CDP auth extraction failed: {e}")
 
     chrome_proc.terminate()
 
-    if tokens:
+    if auth_data and auth_data.get("cookies"):
         try:
-            save_tokens_to_cache(tokens)
-            print(f"✅ 已成功切換並快取新身分的認證 Token（{profile_dir}）")
+            auth_manager = AuthManager("default")
+            auth_manager.save_profile(
+                cookies=auth_data["cookies"],
+                csrf_token=auth_data.get("csrf_token"),
+                session_id=auth_data.get("session_id"),
+                email=auth_data.get("email"),
+                build_label=auth_data.get("build_label"),
+                base_host=auth_data.get("base_host"),
+                force=True,
+            )
+            extracted_email = auth_data.get("email") or profile_dir
+            print(f"✅ 已成功切換並快取新身分的認證 Token（Profile: {profile_dir}, Email: {extracted_email}）")
             return True
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"❌ 儲存 Profile 失敗: {e}")
     return False
 
 def switch_google_account_interactive(timeout_sec=60):
@@ -178,7 +199,6 @@ def ensure_auth():
     """檢查認證有效性，過期時自動啟動 Chrome headless 重認證。"""
     try:
         from notebooklm_tools.core.auth import check_auth
-        from notebooklm_tools.utils.auth_browser import run_headless_auth
     except ImportError:
         print("Notice: notebooklm_tools inner auth modules not available for auto-recovery check.")
         return True
@@ -189,16 +209,7 @@ def ensure_auth():
 
     print("⚠️  認證過期或 Token 需要旋轉刷新，嘗試自動恢復...")
 
-    # 1. 先嘗試 headless auth（需要 Chrome 已以 --remote-debugging-port 啟動）
-    try:
-        tokens = run_headless_auth(profile_name='default', timeout=30)
-        if tokens:
-            print("✅ 認證已自動恢復（透過現有 Chrome CDP）")
-            return True
-    except Exception:
-        pass
-
-    # 2. 互動/環境變數選擇要使用哪一個 Chrome 帳號身分，並啟動 Chrome 重新認證
+    # 選擇要使用哪一個 Chrome 帳號身分，並啟動 Chrome 重新認證
     profile_dir = _select_chrome_profile_interactive()
     if _launch_chrome_and_authenticate(profile_dir, timeout_sec=60):
         return True
@@ -219,16 +230,13 @@ def get_profile_metadata():
     """取得當前 Token Profile 的 session_id 與檔案 mtime，作為帳號切換與 Token 變更的具體監控指標。"""
     try:
         from notebooklm_tools.services.auth import AuthManager
-        auth = AuthManager()
+        auth = AuthManager('default')
         profile = auth.load_profile()
         session_id = getattr(profile, "session_id", "")
         
-        # 取得 profile 快取檔路徑與 mtime
-        profile_path = os.path.expanduser("~/.notebooklm_tools/profiles/default.json")
-        if not os.path.exists(profile_path):
-            profile_path = os.path.expanduser("~/.notebooklm_tools/auth.yaml")
-        
-        mtime = os.path.getmtime(profile_path) if os.path.exists(profile_path) else 0
+        # 取得 metadata 快取檔路徑與 mtime
+        metadata_file = auth.metadata_file
+        mtime = os.path.getmtime(metadata_file) if metadata_file.exists() else 0
         return session_id, mtime
     except Exception:
         return "", 0

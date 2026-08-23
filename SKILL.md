@@ -229,6 +229,7 @@ sources: ["source-summary-slug"]
 
 3. **[重要前置與自動防護機制]**：
    - **Step 0 來源完整性**：執行前務必確認 NotebookLM 雲端筆記本中已手動上傳目標書籍（EPUB/PDF），避免模型無文本可提煉。
+   - **多帳號自動共用 (Auto-Share)**：`01_init_notebook.py` 與 `02_batch_generate.py` 內建自動共用機制，會自動讀取 `auth_pool/pool_config.yaml` 並透過 API 將所有備用帳號設定為該筆記本的 Editor，徹底解決輪換帳號時「因無權限被誤判為冷卻」的問題。
    - **帳號權限核對**：若 `nlm notebook list` 或存取報錯 403，請確認當前登入之 Chrome 身分具備該筆記本權限，或使用 `nlm login --clear` 切換。
    - **新書自動重置**：`01_init_notebook.py` 偵測到更換新書時，會自動清空舊的 `ground_truth_toc.json`、`qc_status.json` 與批次設定，並自動以每 2 章一組重新產生 `batch_strategy.batches`。
    - **空批次防護**：`02_batch_generate.py` 若遇空批次會立即 Hard-Fail 並提示執行 01，嚴禁偽成功。

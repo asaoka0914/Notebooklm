@@ -5,6 +5,15 @@ import yaml
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+# 確保 stdout 為 UTF-8
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+else:
+    sys.stdout.reconfigure(encoding='utf-8')
 
 # 定義目錄與檔案路徑
 POOL_DIR = Path(__file__).resolve().parent.parent / "auth_pool"
@@ -185,12 +194,28 @@ def rotate_account(pool_status: dict, config: dict) -> dict | None:
         print("⚠️ 帳號池中所有帳號均在冷卻中或無可用帳號。")
         return None
 
-def is_current_token_valid() -> bool:
-    """檢查當前本地快取的 Token 是否依然有效。"""
+def is_current_token_valid(expected_email: str = None) -> bool:
+    """
+    檢查當前本地快取的 Token 是否依然有效，
+    若指定 expected_email 則一併比對快取中的帳號 Email 是否相符。
+    """
     try:
         from notebooklm_tools.core.auth import check_auth
+        from notebooklm_tools.services.auth import AuthManager
+
         result = check_auth(profile='default', live=True)
-        return bool(getattr(result, 'valid', False))
+        if not getattr(result, 'valid', False):
+            return False
+
+        if expected_email:
+            auth = AuthManager('default')
+            profile = auth.load_profile()
+            cached_email = getattr(profile, "email", "") or ""
+            if cached_email.strip().lower() != expected_email.strip().lower():
+                print(f"ℹ️ 當前快取 Token 身分 ({cached_email}) 與目標帳號 ({expected_email}) 不符，需重新提取。")
+                return False
+
+        return True
     except Exception:
         return False
 
@@ -236,12 +261,12 @@ def ensure_auth_pool() -> bool:
         pool_status["current_account"] = current_acc["id"]
         save_pool_status(pool_status)
 
-    # 1. 優先檢查現有快取 Token：若當前帳號未冷卻且 Token 有效，直接使用無需重啟 Chrome
+    # 1. 優先檢查現有快取 Token：若當前帳號未冷卻且 Token 有效且 Email 符合，直接使用無需重啟 Chrome
     if current_acc:
         acc_stat = pool_status.setdefault("accounts", {}).setdefault(current_acc["id"], {})
         if not is_account_in_cooldown(acc_stat):
-            if is_current_token_valid():
-                print(f"✅ 當前帳號 [{current_acc['id']}] Token 依然有效，直接使用（無需啟動 Chrome）。")
+            if is_current_token_valid(expected_email=current_acc.get("email")):
+                print(f"✅ 當前帳號 [{current_acc['id']}] ({current_acc.get('email')}) Token 依然有效，直接使用（無需啟動 Chrome）。")
                 return True
 
     total_accounts = len(accounts)
@@ -287,6 +312,59 @@ def ensure_auth_pool() -> bool:
     print("⚠️ 帳號池所有帳號均認證失敗或冷卻中，啟動優雅降級 (Fallback 至單帳號互動選單)...")
     from _auth_utils import ensure_auth
     return ensure_auth()
+
+def sync_notebook_collaborators(notebook_id: str) -> bool:
+    """
+    自動將 pool_config.yaml 中所有已啟用的帳號（email）共用為該筆記本的 Editor。
+    確保在主帳號配額用盡輪換至備用帳號時，備用帳號可以直接存取該筆記本。
+    """
+    if not notebook_id:
+        return False
+    try:
+        config = load_pool_config()
+        accounts = [acc for acc in config.get("accounts", []) if acc.get("enabled", True)]
+        if not accounts:
+            return False
+
+        from notebooklm_tools.services.auth import AuthManager
+        from notebooklm_tools.core.client import NotebookLMClient
+
+        auth = AuthManager()
+        profile = auth.load_profile()
+        client = NotebookLMClient(cookies=profile.cookies, csrf_token=profile.csrf_token, session_id=profile.session_id)
+
+        # 取得現有協作者名單
+        share_status = client.get_share_status(notebook_id)
+        existing_emails = set()
+        if share_status and hasattr(share_status, "collaborators"):
+            for c in share_status.collaborators:
+                if getattr(c, "email", None):
+                    existing_emails.add(c.email.strip().lower())
+
+        synced_any = False
+        for acc in accounts:
+            email = acc.get("email", "").strip().lower()
+            if not email:
+                continue
+            if email not in existing_emails:
+                print(f"🤝 [Auto-Share] 正在自動將筆記本共用給帳號池成員: {email} (editor)...")
+                try:
+                    success = client.add_collaborator(notebook_id, email, role="editor", notify=False)
+                    if success:
+                        print(f"  ✅ 成功將筆記本共用給: {email}")
+                        existing_emails.add(email)
+                        synced_any = True
+                    else:
+                        print(f"  ⚠️ 共用至 {email} 回傳非 True")
+                except Exception as share_err:
+                    print(f"  ⚠️ 共用至 {email} 失敗: {share_err}")
+            else:
+                pass
+
+        return True
+    except Exception as e:
+        print(f"⚠️ [Auto-Share] 自動同步筆記本協作者失敗 ({e})，略過此步驟。")
+        return False
 
 def pool_status_report():
     """印出帳號池目前狀態（CLI 輔助檢視）。"""

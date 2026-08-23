@@ -109,7 +109,7 @@ def extract_summary(previous_batch_json):
 
 from _auth_utils import ensure_auth_with_pool, is_auth_error, switch_google_account_interactive
 
-def wait_for_account_switch(timeout_sec=300):
+def wait_for_account_switch(notebook_id=None, timeout_sec=300):
     """
     當遇 RESOURCE_EXHAUSTED 限流時，優先透過帳號池自動輪換下一個帳號；
     若帳號池無可用帳號，再彈出 Chrome 帳號身分選單讓使用者選擇。
@@ -117,6 +117,14 @@ def wait_for_account_switch(timeout_sec=300):
     print("\n" + "="*70)
     print("⚠️ [Quota Limit Alert] 當前 Google 帳號 NotebookLM 今日配額已達上限！")
     print("="*70 + "\n")
+
+    # 0. 輪換前先確保筆記本已共用給帳號池成員
+    if notebook_id:
+        try:
+            from _auth_pool import sync_notebook_collaborators
+            sync_notebook_collaborators(notebook_id)
+        except Exception:
+            pass
 
     # 1. 嘗試透過帳號池自動輪換
     try:
@@ -175,13 +183,16 @@ def run_query_via_cli(notebook_id, prompt, timeout_sec=300, rate_limiter=None):
                 rate_limiter.record_error_and_backoff()
             err_msg = str(e)
             if "RESOURCE_EXHAUSTED" in err_msg or "error code 8" in err_msg:
-                if wait_for_account_switch(timeout_sec=300):
+                if wait_for_account_switch(notebook_id=notebook_id, timeout_sec=300):
                     # 帳號切換成功，重新實例化 client
                     auth = AuthManager()
                     profile = auth.load_profile()
                     client = NotebookLMClient(cookies=profile.cookies, csrf_token=profile.csrf_token, session_id=profile.session_id)
                     continue
-                return None
+                # 修正：帳號池與互動式切換皆失敗 → 判定為全域配額耗盡，立即拋出例外中止，不再浪費重試次數
+                raise RateLimitExhaustedError(
+                    "帳號池所有帳號均在冷卻中且無法切換帳號，全域配額耗盡（Batch 層級偵測）"
+                )
             elif is_auth_error(e):
                 print(f"⚠️ 檢測到執行中途 Token 旋轉/失效 ({err_msg[:100]})，嘗試中途自動恢復...")
                 if ensure_auth_with_pool():
@@ -323,7 +334,13 @@ def run_batch_generation():
                     "chapters": ch_list,
                     "error": last_err
                 })
-                break
+                # 修正：寫出失敗紀錄後，立即終止整個批次生成任務，不再嘗試後續 Batch
+                failed_batches_path = os.path.join(BASE_DIR, "failed_batches.json")
+                with open(failed_batches_path, "w", encoding="utf-8") as ff:
+                    json.dump(failed_batches, ff, ensure_ascii=False, indent=2)
+                print(f"\n[FATAL] 全域配額耗盡或已達限流上限，已中止批次生成。已完成的 Batch 已保留（中斷續傳機制），"
+                      f"待帳號冷卻結束或新增帳號後，重新執行本腳本即可自動從中斷處繼續。")
+                sys.exit(1)
             except Exception as e:
                 last_err = str(e)
 
