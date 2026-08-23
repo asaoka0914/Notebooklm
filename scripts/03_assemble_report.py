@@ -44,12 +44,12 @@ def normalize_headings(text):
         if re.match(r'^(?:#{1,6}\s*)?(?:Part\s*[\dIVXLCDMivxlcdm]+|第\s*[\d一二三四五六七八九十百]+\s*[部篇卷章堂課講夜節]|洞察市場真實面|CHAPTER\s*\d+|Lesson\s*\d+|Unit\s*\d+|前言|總結|附錄)', stripped, re.IGNORECASE):
             clean_title = re.sub(r'^#{1,6}\s*', '', stripped)
             norm_lines.append(f"\n## {clean_title}\n")
-        # 2. 識別子結構 (如：##### 1.1 ..., 📌 核心概念, 💡 重點擷取)
-        elif re.match(r'^(?:#{1,6}\s*)?(?:\d+\.\d+|📌|💡|核心概念|重點擷取)', stripped):
+        # 2. 識別子結構 (如：##### 1.1 ..., 1-1 ..., 📌 核心概念, 💡 重點擷取)
+        elif re.match(r'^(?:#{1,6}\s*)?(?:\d+[\.\-–—]\d+|📌|💡|核心概念|重點擷取)', stripped):
             clean_subtitle = re.sub(r'^#{1,6}\s*', '', stripped)
             norm_lines.append(f"\n### {clean_subtitle}\n")
-        # 3. 匹配 "純數字/序號（如 3-7 或 14）+ 空格/符號 + 中文標題/引號" 格式（如：#### 3-7 保險規畫──美國篇、#### 1 理財要分身有術）
-        elif re.match(r'^(?:#{1,6}\s*)?\d+(?:[-–—]\d+)?\s*(?:[「『"\'“”])?\s*[\u4e00-\u9fa5a-zA-Z]', stripped):
+        # 3. 匹配 "純整數序號（如 14 或 01）+ 空格/符號 + 中文標題/引號" 格式（如：#### 1 理財要分身有術）
+        elif re.match(r'^(?:#{1,6}\s*)?\d+\s*(?:[「『"\'“”])?\s*[\u4e00-\u9fa5a-zA-Z]', stripped):
             clean_title = re.sub(r'^#{1,6}\s*', '', stripped)
             norm_lines.append(f"\n## {clean_title}\n")
         else:

@@ -26,13 +26,26 @@ except Exception:
     print("⚠️ [Notice] 未偵測到 opencc 套件，QC 比對將略過簡繁同化（建議執行 pip install opencc-python-reimplemented）。")
 
 def _normalize(s):
-    """將文字進行繁簡同化並移除常見標點符號（含全形彎引號），提升比對容錯度。"""
+    """將文字進行繁簡同化、數字同化（阿拉伯數字轉中文數字）並移除常見標點符號，徹底解決第1章 vs 第一章格式不匹配。"""
     if _CC is not None:
         try:
             s = _CC.convert(s)  # 先同化為繁體
         except Exception:
             pass
-    return re.sub(r'[\s:："\u2018\u2019\u201c\u201d\'\.,;!?、《》【】「」()\(\)]', '', s)
+    # 阿拉伯數字轉中文數字同化 (第 1 章 -> 第一章, 1 -> 一)
+    num_map = {
+        '10': '十', '11': '十一', '12': '十二', '13': '十三', '14': '十四', '15': '十五',
+        '16': '十六', '17': '十七', '18': '十八', '19': '十九', '20': '二十',
+        '1': '一', '2': '二', '3': '三', '4': '四', '5': '五',
+        '6': '六', '7': '七', '8': '八', '9': '九', '0': '零'
+    }
+    # 替換 "第 N 章" 為 "第 中文數字 章"
+    def _rep_num(m):
+        n = m.group(1)
+        return f"第{num_map.get(n, n)}章"
+    s = re.sub(r'第\s*(\d{1,2})\s*章', _rep_num, s)
+
+    return re.sub(r'[\s:："\u2018\u2019\u201c\u201d\'\.,;!?、《》【】「」()\(\)\-_–—]', '', s)
 
 def detect_duplicate_chapters(headings):
     """檢測章節標題清單中是否存在重複（基於標準化比對）"""
@@ -107,16 +120,18 @@ def run_single_qc_pass(report_path):
         found_chapter_titles.append(h2_title)
         chap_len = len(chap)
 
-        # 判定是否為 Part/部/篇/卷 等總綱型過渡章節
+        # 判定是否為 Part/部/篇/卷 或純章節大標題（其下包含子小節）
         is_part_header = bool(re.match(r'^(?:Part\s*[\dIVXLCDMivxlcdm]+|第\s*[\d一二三四五六七八九十百]+\s*[部篇卷]|前言|總結|附錄)', h2_title, re.IGNORECASE))
+        # 判定此區塊內是否包含 H3 子小節（如 ### 1-1 或 ### 📌）
+        has_subsections = "### " in chap
 
         has_concept = "📌 核心概念" in chap or "核心概念" in chap
         has_details = "💡 重點擷取" in chap or "重點擷取" in chap
 
         status_flag = "✅"
-        # 若為 Part 總綱標題，豁免 1000 字限制與結構標籤檢查
-        if is_part_header:
-            status_flag = "ℹ️ [Part/總綱]"
+        # 若為 Part 總綱標題或帶有子小節的章節標題，豁免單獨的 1000 字限制與結構標籤檢查
+        if is_part_header or (has_subsections and (has_concept or has_details)):
+            status_flag = "✅ [章節/總綱]"
         elif chap_len < 1000 or not (has_concept and has_details):
             status_flag = "⚠️"
             has_density_warnings = True
