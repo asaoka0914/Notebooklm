@@ -96,35 +96,42 @@ def extract_epub_cover(book_path, output_cover_path):
     return False
 
 def extract_epub_metadata(book_path):
-    """從 EPUB 的 OPF 檔案中擷取作者 (creator)、書名 (title) 等元數據。"""
+    """從 EPUB 的 OPF 檔案中擷取作者 (creator)、書名 (title) 等元數據。若無 OPF 則從檔名提取。"""
     if not os.path.exists(book_path) or not book_path.lower().endswith(".epub"):
         return {}
     meta = {}
     try:
         with zipfile.ZipFile(book_path, 'r') as z:
             opf_files = [f for f in z.namelist() if f.endswith('.opf')]
-            if not opf_files:
-                return {}
-            content = z.read(opf_files[0])
-            root = ET.fromstring(content)
-            
-            # 擷取作者 (dc:creator)
-            creators = []
-            for elem in root.findall('.//{http://purl.org/dc/elements/1.1/}creator'):
-                if elem.text and elem.text.strip():
-                    creators.append(elem.text.strip())
-            if creators:
-                meta['author'] = ', '.join(creators)
+            if opf_files:
+                content = z.read(opf_files[0])
+                root = ET.fromstring(content)
                 
-            # 擷取書名 (dc:title)
-            titles = []
-            for elem in root.findall('.//{http://purl.org/dc/elements/1.1/}title'):
-                if elem.text and elem.text.strip():
-                    titles.append(elem.text.strip())
-            if titles:
-                meta['title'] = titles[0]
+                # 擷取作者 (dc:creator)
+                creators = []
+                for elem in root.findall('.//{http://purl.org/dc/elements/1.1/}creator'):
+                    if elem.text and elem.text.strip():
+                        creators.append(elem.text.strip())
+                if creators:
+                    meta['author'] = ', '.join(creators)
+                    
+                # 擷取書名 (dc:title)
+                titles = []
+                for elem in root.findall('.//{http://purl.org/dc/elements/1.1/}title'):
+                    if elem.text and elem.text.strip():
+                        titles.append(elem.text.strip())
+                if titles:
+                    meta['title'] = titles[0]
     except Exception as e:
         print(f"⚠️ Failed to extract EPUB metadata: {e}")
+
+    # Fallback: 若無法從 OPF 取得書名，直接由檔案名稱解析（如 "書名 (作者).epub" -> "書名"）
+    if not meta.get('title'):
+        base_name = os.path.splitext(os.path.basename(book_path))[0]
+        # 清理結尾括號中的作者名或附屬說明
+        cleaned_title = re.sub(r'[\(（\[【].*?[\)）\]】]$', '', base_name).strip()
+        meta['title'] = cleaned_title or base_name
+
     return meta
 
 FRONTMATTER_KEYWORDS = (
@@ -138,7 +145,7 @@ def _is_frontmatter(text: str) -> bool:
 
 CHAPTER_MARKERS = (
     "章", "Chapter", "chapter", "篇", "Part", "part", "PART",
-    "Unit", "unit", "Lesson", "lesson", "法則", "夜", "卷", "節", "讲", "講", "堂", "課", "课"
+    "Unit", "unit", "Lesson", "lesson", "法則", "夜", "卷", "節", "讲", "講", "堂", "課", "课", "Letters", "Letter"
 )
 
 def _is_chapter_candidate(text: str) -> bool:
@@ -149,6 +156,9 @@ def _is_chapter_candidate(text: str) -> bool:
         return True
     # 2. 符合「數字 + 標點/空格 + 標題」格式（如 "1 理財要分身有術", "01. 基礎入門"）
     if re.match(r'^(?:\d{1,3}|[一二三四五六七八九十百]+)[\s.:：、\-\–][\u4e00-\u9fa5a-zA-Z]', text):
+        return True
+    # 3. 符合巢狀小節標記（如 "1-1 誰需要理財教育？", "2-3 與優秀企業家同行", "Letter 1 ..."）
+    if re.match(r'^(?:\d{1,2}[\-–—]\d{1,2}|Letters?\s*\d+)[\s.:：、\-\–]?[\u4e00-\u9fa5a-zA-Z]', text, re.IGNORECASE):
         return True
     return False
 
@@ -171,7 +181,7 @@ def extract_epub_toc(book_path):
                             if text not in chapters:
                                 chapters.append(text)
                 except Exception as inner_e:
-                    # XML parsing fallback: 優先採用 Python 內建 html.parser 解析殘破 HTML，其次退回 Lookahead 正則
+                    # XML parsing fallback: 採用 Python 內建 html.parser 遞迴解析殘破 HTML 與 a 標籤
                     try:
                         raw_str = content.decode('utf-8', errors='ignore')
                         from html.parser import HTMLParser
@@ -186,7 +196,6 @@ def extract_epub_toc(book_path):
                                     self.in_a = True
                                     self.current_text = []
                                 elif tag.lower() in ('li', 'ol', 'ul', 'nav', 'p', 'div', 'tr') and self.in_a:
-                                    # 遇到容器標籤但 <a> 未閉合，自動截斷前一個 <a>
                                     txt = "".join(self.current_text).strip()
                                     if txt:
                                         self.extracted.append(txt)
@@ -212,7 +221,6 @@ def extract_epub_toc(book_path):
 
                         candidates = parser.extracted
                         if not candidates:
-                            # 備用正則：限制在標籤邊界內不跨越下個 <li>/<nav>/<ol>
                             candidates = re.findall(r'<a[^>]*>(.*?)(?:</a>|(?=\s*<li|\s*</li|\s*</ol|\s*</ul|\s*</nav|\Z))', raw_str, flags=re.DOTALL | re.IGNORECASE)
 
                         for m in candidates:
@@ -322,17 +330,27 @@ def init_notebook():
     epub_meta = {}
     if book_local_path and os.path.exists(book_local_path):
         epub_meta = extract_epub_metadata(book_local_path)
-        if not book_title and epub_meta.get("title"):
+        # 若 CLI 沒給 title，優先採用 EPUB 解析出之書名
+        if args.title:
+            book_title = args.title
+        elif epub_meta.get("title"):
             book_title = epub_meta["title"]
+        elif not book_title:
+            base_name = os.path.splitext(os.path.basename(book_local_path))[0]
+            book_title = re.sub(r'[\(（\[【].*?[\)）\]】]$', '', base_name).strip() or base_name
+
+    if not book_title:
+        print("❌ [Error] 無法確認書名！請透過 --title 指定書名，或提供有效的 --epub 電子書路徑。")
+        sys.exit(1)
 
     # 檢查或自動建立 Notebook
     def _create_new_notebook(title_str):
-        print(f"🚀 正在自動為《{title_str or '讀書筆記'}》建立全新 NotebookLM 筆記本...")
+        print(f"🚀 正在自動為《{title_str}》建立全新 NotebookLM 筆記本...")
         import io, json
         old_std = sys.stdout
         sys.stdout = buf = io.StringIO()
         try:
-            app(["notebook", "create", title_str or "讀書筆記", "--json"])
+            app(["notebook", "create", title_str, "--json"])
         except SystemExit:
             pass
         finally:
@@ -372,14 +390,16 @@ def init_notebook():
             sys.stdout = old_std
         return "NOT_FOUND" not in buf.getvalue()
 
-    if not notebook_id or not _is_notebook_valid(notebook_id):
-        if notebook_id:
-            print(f"⚠️ 筆記本 ID [{notebook_id}] 無效或已被刪除，自動建立新筆記本...")
-        notebook_id = _create_new_notebook(book_title)
-
-    # 檢測是否為不同書籍，若更換書名則自動清除舊的 ground_truth_toc 與 qc_status 殘留
+    # 若為不同書籍或目前 ID 無效，重置並建立新筆記本
     old_title = config.get("book_title", "")
     is_new_book = bool(book_title and old_title and book_title != old_title)
+
+    if is_new_book or not notebook_id or not _is_notebook_valid(notebook_id):
+        if is_new_book and notebook_id:
+            print(f"🔄 檢測到新書籍（《{book_title}》vs 舊《{old_title}》），捨棄舊筆記本並建立專屬筆記本...")
+        elif notebook_id:
+            print(f"⚠️ 筆記本 ID [{notebook_id}] 無效或已被刪除，自動建立新筆記本...")
+        notebook_id = _create_new_notebook(book_title)
     if is_new_book:
         print(f"🔄 檢測到新書籍（《{book_title}》vs 舊《{old_title}》），重置舊書狀態快取...")
         gt_path = os.path.join(BASE_DIR, "config", "ground_truth_toc.json")
