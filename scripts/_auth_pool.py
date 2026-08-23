@@ -167,16 +167,17 @@ def select_next_account(pool_status: dict, config: dict, exclude_current: bool =
 
     return available_accounts[0]
 
-def rotate_account(pool_status: dict, config: dict) -> dict | None:
+def rotate_account(pool_status: dict, config: dict, set_cooldown: bool = True) -> dict | None:
     """
-    標記當前帳號冷卻（預設 cooldown_minutes 分鐘），切換至下一個可用帳號並更新 pool_status.json。
+    切換至下一個可用帳號並更新 pool_status.json。
+    僅在 set_cooldown=True (如配額耗盡) 時才設定 cooldown_until。
     """
     current_id = pool_status.get("current_account")
     cooldown_minutes = config.get("cooldown_minutes", 30)
     cooldown_until = (datetime.now() + timedelta(minutes=cooldown_minutes)).isoformat()
 
     status_accounts = pool_status.setdefault("accounts", {})
-    if current_id and current_id in status_accounts:
+    if set_cooldown and current_id and current_id in status_accounts:
         status_accounts[current_id]["cooldown_until"] = cooldown_until
         status_accounts[current_id]["status"] = "cooldown"
         print(f"⏸️ 帳號 [{current_id}] 進入冷卻狀態，冷卻至: {cooldown_until}")
@@ -185,7 +186,8 @@ def rotate_account(pool_status: dict, config: dict) -> dict | None:
     if next_acc:
         pool_status["current_account"] = next_acc["id"]
         pool_status["last_rotated"] = datetime.now().isoformat()
-        status_accounts[next_acc["id"]]["status"] = "active"
+        if status_accounts.get(next_acc["id"], {}).get("status") != "cooldown":
+            status_accounts[next_acc["id"]]["status"] = "active"
         save_pool_status(pool_status)
         print(f"🔀 已輪換切換至帳號: [{next_acc['id']}] ({next_acc.get('email')})")
         return next_acc
@@ -304,7 +306,7 @@ def ensure_auth_pool() -> bool:
             return True
         else:
             print(f"❌ 帳號 [{current_acc['id']}] 認證或 Profile 比對失敗，嘗試切換下一個帳號...")
-            current_acc = rotate_account(pool_status, config)
+            current_acc = rotate_account(pool_status, config, set_cooldown=False)
             if not current_acc:
                 break
 

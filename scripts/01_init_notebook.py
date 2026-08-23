@@ -250,8 +250,9 @@ def init_notebook():
         sys.exit(1)
     parser = argparse.ArgumentParser(description="Initialize NotebookLM source rules & local cover.")
     parser.add_argument("--notebook-id", help="NotebookLM notebook ID")
-    parser.add_argument("--book-path", help="Path to local book file (EPUB/PDF)")
+    parser.add_argument("--book-path", "--epub", dest="book_path", help="Path to local book file (EPUB/PDF)")
     parser.add_argument("--title", help="Book title")
+    parser.add_argument("--output-dir", help="Optional output directory")
     parser.add_argument("--relogin", action="store_true", help="Clear localized session and force Chrome login before running.")
     args = parser.parse_args()
 
