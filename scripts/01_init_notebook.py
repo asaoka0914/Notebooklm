@@ -95,6 +95,38 @@ def extract_epub_cover(book_path, output_cover_path):
         print(f"⚠️ Failed to extract EPUB cover: {e}")
     return False
 
+def extract_epub_metadata(book_path):
+    """從 EPUB 的 OPF 檔案中擷取作者 (creator)、書名 (title) 等元數據。"""
+    if not os.path.exists(book_path) or not book_path.lower().endswith(".epub"):
+        return {}
+    meta = {}
+    try:
+        with zipfile.ZipFile(book_path, 'r') as z:
+            opf_files = [f for f in z.namelist() if f.endswith('.opf')]
+            if not opf_files:
+                return {}
+            content = z.read(opf_files[0])
+            root = ET.fromstring(content)
+            
+            # 擷取作者 (dc:creator)
+            creators = []
+            for elem in root.findall('.//{http://purl.org/dc/elements/1.1/}creator'):
+                if elem.text and elem.text.strip():
+                    creators.append(elem.text.strip())
+            if creators:
+                meta['author'] = ', '.join(creators)
+                
+            # 擷取書名 (dc:title)
+            titles = []
+            for elem in root.findall('.//{http://purl.org/dc/elements/1.1/}title'):
+                if elem.text and elem.text.strip():
+                    titles.append(elem.text.strip())
+            if titles:
+                meta['title'] = titles[0]
+    except Exception as e:
+        print(f"⚠️ Failed to extract EPUB metadata: {e}")
+    return meta
+
 FRONTMATTER_KEYWORDS = (
     "封面", "推薦序", "推荐序", "前言", "致謝", "致谢",
     "序言", "緒論", "作者序", "譯者序", "出版序",
@@ -252,6 +284,7 @@ def init_notebook():
     parser.add_argument("--notebook-id", help="NotebookLM notebook ID")
     parser.add_argument("--book-path", "--epub", dest="book_path", help="Path to local book file (EPUB/PDF)")
     parser.add_argument("--title", help="Book title")
+    parser.add_argument("--author", help="Book author")
     parser.add_argument("--output-dir", help="Optional output directory")
     parser.add_argument("--relogin", action="store_true", help="Clear localized session and force Chrome login before running.")
     args = parser.parse_args()
@@ -285,13 +318,21 @@ def init_notebook():
     if not os.path.exists(rule_source_path):
         rule_source_path = os.path.join(BASE_DIR, "source", rule_filename)
 
+    # 擷取 EPUB 元數據（若有提供電子書檔）
+    epub_meta = {}
+    if book_local_path and os.path.exists(book_local_path):
+        epub_meta = extract_epub_metadata(book_local_path)
+        if not book_title and epub_meta.get("title"):
+            book_title = epub_meta["title"]
+
     if not notebook_id:
         print("Error: notebook_id is missing in CLI args or config.")
         sys.exit(1)
 
     # 檢測是否為不同書籍，若更換書名則自動清除舊的 ground_truth_toc 與 qc_status 殘留
     old_title = config.get("book_title", "")
-    if book_title and old_title and book_title != old_title:
+    is_new_book = bool(book_title and old_title and book_title != old_title)
+    if is_new_book:
         print(f"🔄 檢測到新書籍（《{book_title}》vs 舊《{old_title}》），重置舊書狀態快取...")
         gt_path = os.path.join(BASE_DIR, "config", "ground_truth_toc.json")
         if os.path.exists(gt_path):
@@ -310,6 +351,17 @@ def init_notebook():
         # 若是新書，清空舊的批次配置以觸發重新生成
         if "batch_strategy" in config:
             config["batch_strategy"]["batches"] = []
+
+    # 處理作者資訊：CLI 指定 > EPUB 元數據 > 新書清空 > 維持既有
+    if args.author:
+        config["author"] = args.author
+        print(f"✅ 設定作者（CLI 指定）：{config['author']}")
+    elif epub_meta.get("author"):
+        config["author"] = epub_meta["author"]
+        print(f"✅ 自動從 EPUB 元數據擷取作者：{config['author']}")
+    elif is_new_book:
+        config["author"] = ""
+        print("ℹ️ 新書籍未指定作者，已清除前一本書之作者資訊。")
 
     print(f"Initializing Notebook ID: {notebook_id}")
 
@@ -341,16 +393,17 @@ def init_notebook():
             config["batch_strategy"]["batches"] = auto_batches
             if "batch_delay_seconds" not in config["batch_strategy"]:
                 config["batch_strategy"]["batch_delay_seconds"] = 8
-            
-            # 回寫 config
-            config["notebook_id"] = notebook_id
-            if book_local_path:
-                config["book_local_path"] = book_local_path
-            if book_title:
-                config["book_title"] = book_title
-            with open(config_path, "w", encoding="utf-8") as cwf:
-                yaml.dump(config, cwf, allow_unicode=True, sort_keys=False)
-            print(f"✅ 自動生成 {len(auto_batches)} 個批次策略並更新至 {config_path}")
+            print(f"✅ 自動生成 {len(auto_batches)} 個批次策略")
+
+    # 回寫最新設定至 config_path
+    config["notebook_id"] = notebook_id
+    if book_local_path:
+        config["book_local_path"] = book_local_path
+    if book_title:
+        config["book_title"] = book_title
+    with open(config_path, "w", encoding="utf-8") as cwf:
+        yaml.dump(config, cwf, allow_unicode=True, sort_keys=False)
+    print(f"✅ 書籍配置已更新至 {config_path}")
 
     print("Checking existing sources in notebook...")
     import io
