@@ -246,10 +246,12 @@ sources: ["source-summary-slug"]
           - **必須包含完整的四大章節**：`📌 概念定義`、`🧠 運作機制與核心價值`、`⚠️ 常見誤區與邊界條件`、`🔗 關聯資料`。
           - **必須從 Summary 模組二提煉深度內容**：將該概念的「機制定義」與「核心價值」完整寫入內文，**嚴禁只擷取一行無關字串作為佔位符**。
           - **反向回連**：底部「🔗 關聯資料」必須帶有回連該 Summary 的反向連結（格式必須為繁中標題：`- [[wiki/summaries/source-summary|《中文書名》]]`，**嚴禁以英文 slug 當別名**）。
-        - **【強制驗收關卡】**：完成概念關聯後，必須執行 `python check/audit_concept_links.py` 驗收雙向連結完整性，確認無未預期的死連結或缺失反向連結。
+        - **【強制驗收關卡】**：完成概念關聯與檔案歸檔後，必須執行以下兩項驗收：
+          1. `python check/validate_schema.py` 驗收 YAML Frontmatter 屬性與章節結構完整性（Hard-Fail 阻斷）。
+          2. `python check/audit_concept_links.py` 驗收雙向連結完整性，確認無未預期的死連結或缺失反向連結。
      4. 更新 index.md（依書籍領域歸類）。
      5. 追加 log.md（格式：`- [HH:MM] 匯入書籍《書名》 (via: book-reader)`）。
-     6. **清理暫存檔**：確認所有成果成功歸檔後，執行清理 `raw_outputs/[書名]/` 下的中間 batch JSON 檔案。
+     6. **清理暫存檔**：確認所有成果成功歸檔且驗收通過後，執行清理 `raw_outputs/[書名]/` 下的中間 batch JSON 檔案。
 
 2. **[MODIFY] 防錯 Guardrails 強化**：
    - 嚴禁 Agent 手動全文讀取上萬字的詳細報告重寫摘要（避免浪費 Context）。
