@@ -219,11 +219,24 @@ sources: ["source-summary-slug"]
 
 ### 階段二：本地端 Agent 協作協議與 SKILL 定義
 
+> [!IMPORTANT]
+> **Obsidian Vault 根目錄判定原則 (跨電腦通用規範)**：
+> 階段二的所有相對路徑（`raw/articles/zh/`, `wiki/summaries/`, `wiki/concepts/`, `index.md`, `log.md`）
+> 必須依以下順序鎖定唯一目標知識庫（BoBo-wiki）根目錄：
+> 
+> 1. **指令自動取得（推薦）**：
+>    執行 `python -c "import sys; sys.path.append('scripts'); from env_config import get_vault_path; print(get_vault_path())"`
+> 2. **雙環境路徑清單（直接比對現存目錄，禁止全盤亂搜）**：
+>    - **家中電腦 (AsaokaHTPC)**：`G:\我的雲端硬碟\Obsidian\BoBo-wiki`
+>    - **公司筆電 (asaoka.zhong)**：`C:\Users\asaoka.zhong\Desktop\obsidian\BoBo-wiki` 或 `C:\Users\asaoka.zhong\Desktop\Project\Obsidian\BoBo-wiki`
+> 
+> ⚠️ **硬性禁令**：嚴禁寫入 `Documents\Obsidian Vault` 等非 BoBo-wiki 之本機預設空資料夾！
+
 1. **[MODIFY] 更新 SKILL.md**：
    - 明確定義 Agent 接手後的 5 大任務：
      1. 生成標準英文 kebab-case slug（使用安全字元轉換，避免標點正則錯誤）。
-     2. 檢查並寫入兩份檔案（詳細版至 raw/articles/zh/，摘要版至 wiki/summaries/）。
-     3. **檢索與維護 wiki/concepts/（防覆蓋與標準品質雙重閉環）**：
+     2. 檢查並寫入兩份檔案（詳細版至 `[VAULT_ROOT]/raw/articles/zh/`，摘要版至 `[VAULT_ROOT]/wiki/summaries/`）。
+     3. **檢索與維護 `[VAULT_ROOT]/wiki/concepts/`（防覆蓋與標準品質雙重閉環）**：
         - **【強制 Slug 轉譯與繁中 Title 防呆】**：
           - 檢查摘要內的模組二與模組六，**若發現任何純中文裸連結（如 `[[四種經濟狀況反應模型]]`），必須立即修正為 `[[english-slug|繁體中文]]`（如 `[[four-economic-conditions|四種經濟狀況反應模型]]`）**，嚴禁讓純中文裸字串流入知識庫。
           - 建立概念筆記時，**Frontmatter 中的 `title` 必須為繁體中文名稱**（例如 `title: "直覺決策 (Intuitive Decision)"`），嚴禁直接填入英文 slug（如 `title: "intuitive-decision"`）。
