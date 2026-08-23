@@ -1,5 +1,13 @@
 [
   {
+    "time": "2026-08-23 14:33",
+    "title": "解決新書初始化 Notebook_id 失效問題並重新上傳書籍檔案",
+    "files": [
+      "scripts/01_init_notebook.py"
+    ],
+    "status": "✅完成"
+  },
+  {
     "time": "2026-08-23 13:43",
     "title": "實作全域 Circuit Breaker 致命中斷保護（終止狂洗後續 Batch）與擴充第三備援帳號",
     "files": [

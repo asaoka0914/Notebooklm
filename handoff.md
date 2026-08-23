@@ -1,10 +1,13 @@
 # Handoff (交接紀錄)
 
-- **最後更新時間**: 2026-08-23 13:48
+- **最後更新**: 2026-08-23 14:34
 - **最後操作裝置**: 家裡電腦 (AsaokaHTPC)
-- **當前狀態**: 🟢 完成多帳號 Token 身分校驗、CDP headless 認證修復、全域 Circuit Breaker 致命中斷保護與第 3 備援帳號擴充，全套單元測試 100% 通過，全域技能同步與 GitHub 備份完畢。
+- **當前狀態**: 🟢 完成新書《為什麼你的退休金只有別人的一半》 Notebook_id 重新初始化與 EPUB 上傳，並成功啟動 batch background 任務。
 - **目前做到哪**: 
-  - **多帳號 Token 快取身份校驗（防偷換帳號）**：
+  - **新書初始化與上傳**:
+    - 已重新建立新的 Notebook (`cdef6c8f...`) 並更新 `book_config.yaml`。
+    - 成功上傳新書 EPUB 與核心概念 markdown。
+    - 成功觸發 `02_batch_generate.py` 背景擷取任務。
     - 於 `scripts/_auth_pool.py` 之 `is_current_token_valid()` 與 `ensure_auth_pool()` 加入 `expected_email` 比對，確保快取 Token 與目標帳號 Email 一致才複用，杜絕偷換帳號與誤判問題。
   - **修復 Chrome CDP 認證與 Profile 選取**：
     - 於 `scripts/_auth_utils.py` 之 `_launch_chrome_and_authenticate` 改用 `extract_cookies_via_existing_cdp` 與 `AuthManager.save_profile`，修復原本 `run_headless_auth(port=...)` 引發 `TypeError` 導致認證默默失敗的缺陷。
