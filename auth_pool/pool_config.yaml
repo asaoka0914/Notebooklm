@@ -12,8 +12,3 @@ accounts:
     token_file: tokens/gwa20080808_gmail.json
     enabled: true
     note: "個人備用帳號"
-  - id: jessie3408h_gmail
-    email: jessie3408h@gmail.com
-    token_file: tokens/jessie3408h_gmail.json
-    enabled: true
-    note: "個人第三備援帳號（Profile 5 / Amy）"

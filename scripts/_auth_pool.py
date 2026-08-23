@@ -3,6 +3,8 @@ import sys
 import json
 import yaml
 import time
+import shutil
+import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 # 確保 stdout 為 UTF-8
