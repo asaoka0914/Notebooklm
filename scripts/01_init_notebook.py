@@ -416,6 +416,22 @@ def init_notebook():
                 print(f"  ✅ 已清除舊 QC 狀態：{qc_path}")
             except Exception:
                 pass
+        # 清除舊書的暫存摘要檔 (scratch/temp_book_summary.md)
+        old_temp_summary = os.path.join(BASE_DIR, "scratch", "temp_book_summary.md")
+        if os.path.exists(old_temp_summary):
+            try:
+                os.remove(old_temp_summary)
+                print(f"  ✅ 已清除舊書暫存摘要：{old_temp_summary}")
+            except Exception:
+                pass
+        # 清除舊的 failed_batches.json
+        old_failed = os.path.join(BASE_DIR, "failed_batches.json")
+        if os.path.exists(old_failed):
+            try:
+                os.remove(old_failed)
+                print(f"  ✅ 已清除舊失敗批次記錄：{old_failed}")
+            except Exception:
+                pass
         # 若是新書，清空舊的批次配置以觸發重新生成
         if "batch_strategy" in config:
             config["batch_strategy"]["batches"] = []

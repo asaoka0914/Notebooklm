@@ -146,15 +146,39 @@ def generate_book_summary(notebook_id=None, book_title=None, author=''):
         return False
 
     answer_text = res.get('answer', '').strip()
+    
+    # 自動生成標準英文 slug（移除標點並轉 kebab-case）
+    import unicodedata
+    clean_title = re.sub(r'[\(（\[【].*?[\)）\]】]', '', book_title).strip()
+    # 將中文書名透過 opencc 或 pinyin 轉為安全英文字串（若無 pinyin 套件則生成乾淨 title-slug）
+    safe_slug = re.sub(r'[^a-zA-Z0-9]+', '-', clean_title).strip('-').lower()
+    if not safe_slug:
+        safe_slug = "book-summary"
+
+    # 自動拼裝標準 YAML Frontmatter
+    frontmatter_lines = [
+        "---",
+        f"slug: {safe_slug}",
+        "type: book-summary",
+        f"title: 《{book_title}》",
+        f"author: {author or '未知'}",
+        "tags: [書籍摘要, 核心心智模型, 深度導讀]",
+        f"sources: [《{book_title}》, {author or '作者'}]",
+        f"original_ref: [[raw/articles/zh/{safe_slug}|查看完整章節重點精華]]",
+        "---",
+        "",
+    ]
+    full_summary_content = "\n".join(frontmatter_lines) + answer_text
+
     scratch_dir = os.path.join(BASE_DIR, 'scratch')
     os.makedirs(scratch_dir, exist_ok=True)
     summary_path = os.path.join(scratch_dir, 'temp_book_summary.md')
 
     with open(summary_path, 'w', encoding='utf-8') as f:
-        f.write(answer_text)
+        f.write(full_summary_content)
 
-    print(f'✅ [Step 06 Success] 全書深度摘要已產出至暫存檔: {summary_path}')
-    print(f'📊 摘要長度: {len(answer_text)} 字元')
+    print(f'✅ [Step 06 Success] 全書深度摘要（已自帶標準 YAML Frontmatter）已產出至暫存檔: {summary_path}')
+    print(f'📊 摘要長度: {len(full_summary_content)} 字元')
     return True
 
 if __name__ == '__main__':
