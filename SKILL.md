@@ -15,9 +15,31 @@ description: 透過已推權的 notebooklm_tools 或 nlm CLI 操作 NotebookLM�
 > **定位**：專門針對「書籍、長篇報告、萬字以上深度長文」之結構化提取與 Obsidian 知識庫無縫整合方案。  
 > **核心哲學**：**「NotebookLM 負責長文消化（0 Token 消耗） ＋ 本地端 Agent 負責高智慧收尾（低 Token 消耗、高品質關聯）」**。
 
----
-
-## 🎯 核心目標與基底繼承原則
+> **執行原則**：
+> 當收到處理電子書指令時，**嚴禁自行寫計畫、翻查原始碼或進行猜測性除錯**！
+> 腳本已完全具備「自動建立 NotebookLM 筆記本、自動上傳 EPUB 與規則檔、自動多帳號共用、自動批次生成、自動 QC 補課」之全自動能力。
+> **請直接依序執行以下階段一標準指令**：
+> 
+> ```powershell
+> # 1. 自動初始化（自動建筆記本 + 自動上傳電子書與核心概念）
+> python scripts/01_init_notebook.py --epub "電子書絕對路徑.epub"
+> 
+> # 2. 逐章批次擷取
+> python scripts/02_batch_generate.py
+> 
+> # 3. 組裝完整報告
+> python scripts/03_assemble_report.py
+> 
+> # 4. QC 檢查與自動補課
+> python scripts/04_qc_check.py --auto-backfill
+> 
+> # 5. 生成 6 模組全書深度摘要
+> python scripts/06_generate_book_summary.py
+> ```
+> 
+> ---
+> 
+> ## 🎯 核心目標與基底繼承原則
 
 > [!IMPORTANT]
 > **基底繼承與零破壞原則**：

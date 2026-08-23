@@ -325,9 +325,57 @@ def init_notebook():
         if not book_title and epub_meta.get("title"):
             book_title = epub_meta["title"]
 
-    if not notebook_id:
-        print("Error: notebook_id is missing in CLI args or config.")
+    # 檢查或自動建立 Notebook
+    def _create_new_notebook(title_str):
+        print(f"🚀 正在自動為《{title_str or '讀書筆記'}》建立全新 NotebookLM 筆記本...")
+        import io, json
+        old_std = sys.stdout
+        sys.stdout = buf = io.StringIO()
+        try:
+            app(["notebook", "create", title_str or "讀書筆記", "--json"])
+        except SystemExit:
+            pass
+        finally:
+            sys.stdout = old_std
+        out_json = buf.getvalue()
+        try:
+            nb_data = json.loads(out_json)
+            nid = nb_data.get("notebook_id")
+            if nid:
+                print(f"✅ 成功建立筆記本！Notebook ID: {nid}")
+                return nid
+        except Exception:
+            pass
+        # 若 JSON 解析失敗嘗試一般輸出 regex 擷取
+        m = re.search(r'([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})', out_json)
+        if m:
+            nid = m.group(1)
+            print(f"✅ 成功建立筆記本！Notebook ID: {nid}")
+            return nid
+        print("❌ 自動建立筆記本失敗，請確認網路與認證狀態。")
         sys.exit(1)
+
+    # 檢驗現有 notebook_id 是否存在與可用
+    def _is_notebook_valid(nid):
+        if not nid:
+            return False
+        import io
+        old_std = sys.stdout
+        sys.stdout = buf = io.StringIO()
+        try:
+            app(["source", "list", nid, "--json"])
+        except SystemExit:
+            pass
+        except Exception:
+            return False
+        finally:
+            sys.stdout = old_std
+        return "NOT_FOUND" not in buf.getvalue()
+
+    if not notebook_id or not _is_notebook_valid(notebook_id):
+        if notebook_id:
+            print(f"⚠️ 筆記本 ID [{notebook_id}] 無效或已被刪除，自動建立新筆記本...")
+        notebook_id = _create_new_notebook(book_title)
 
     # 檢測是否為不同書籍，若更換書名則自動清除舊的 ground_truth_toc 與 qc_status 殘留
     old_title = config.get("book_title", "")
@@ -425,6 +473,7 @@ def init_notebook():
     except Exception:
         pass
 
+    # 1. 檢查並自動上傳核心概念規則檔
     rule_exists = False
     for s in sources:
         if isinstance(s, dict):
@@ -446,6 +495,29 @@ def init_notebook():
             pass
     else:
         print("Rule source already present in notebook. Skipping upload.")
+
+    # 2. 檢查並自動上傳電子書來源檔案 (EPUB/PDF)
+    if book_local_path and os.path.exists(book_local_path):
+        book_base_filename = os.path.basename(book_local_path)
+        book_exists = False
+        for s in sources:
+            if isinstance(s, dict):
+                title = s.get("title", "")
+                if book_base_filename in title or (book_title and book_title in title):
+                    book_exists = True
+                    print(f"Found book source: {title} (ID: {s.get('id')})")
+                    break
+        if not book_exists:
+            print(f"Book source not found in notebook. Uploading {book_local_path}...")
+            try:
+                app(["source", "add", notebook_id, "--file", book_local_path, "--wait"])
+                print(f"✅ Successfully added book source: {book_base_filename}")
+            except SystemExit:
+                pass
+            except Exception as e:
+                print(f"⚠️ Failed to upload book source: {e}")
+        else:
+            print("Book source already present in notebook. Skipping upload.")
 
     # 自動將筆記本共用給帳號池中所有可用帳號，確保多帳號輪換時零障礙
     try:
