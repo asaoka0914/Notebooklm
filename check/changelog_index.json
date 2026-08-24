@@ -1,5 +1,14 @@
 [
   {
+    "time": "2026-08-24 15:17",
+    "title": "專案目錄重整：實作計畫歸檔至 plan/ 並清理 Git 追蹤檔案",
+    "files": [
+      ".gitignore",
+      "plan/"
+    ],
+    "status": "✅完成"
+  },
+  {
     "time": "2026-08-23 21:17",
     "title": "修復 EPUB 封面提取誤取封底圖 (backcover.jpg) Bug 並重新組裝與歸檔",
     "files": [
