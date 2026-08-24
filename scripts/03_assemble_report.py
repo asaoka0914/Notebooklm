@@ -151,9 +151,18 @@ def assemble_report_core(book_title: str = None):
     if os.path.exists(config_path):
         with open(config_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
-    book_title = book_title or config.get("book_title", "讀書報告")
+    import tempfile
+    temp_raw_dir = os.path.join(tempfile.gettempdir(), "book-reader", "raw_outputs", book_title) if book_title else os.path.join(tempfile.gettempdir(), "book-reader", "raw_outputs")
+    local_raw_dir = os.path.join(BASE_DIR, "raw_outputs", book_title) if (book_title and os.path.exists(os.path.join(BASE_DIR, "raw_outputs", book_title))) else os.path.join(BASE_DIR, "raw_outputs")
     
-    raw_dir = os.path.join(BASE_DIR, "raw_outputs", book_title) if (book_title and os.path.exists(os.path.join(BASE_DIR, "raw_outputs", book_title))) else os.path.join(BASE_DIR, "raw_outputs")
+    # 優先從系統 Temp 目錄讀取，若不存在但專案目錄存在則相容讀取
+    if os.path.exists(temp_raw_dir) and any(f.startswith("batch_") and f.endswith(".json") for f in os.listdir(temp_raw_dir)):
+        raw_dir = temp_raw_dir
+    elif os.path.exists(local_raw_dir) and any(f.startswith("batch_") and f.endswith(".json") for f in os.listdir(local_raw_dir)):
+        raw_dir = local_raw_dir
+    else:
+        raw_dir = temp_raw_dir
+
     final_dir = os.path.join(BASE_DIR, "final", book_title) if (book_title and book_title != "讀書報告") else os.path.join(BASE_DIR, "final")
     os.makedirs(final_dir, exist_ok=True)
 

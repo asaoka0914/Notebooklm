@@ -135,6 +135,17 @@ def get_obsidian_raw_dir() -> Optional[Path]:
         return raw_dir
     return None
 
+def get_temp_raw_dir(book_title: str = None) -> Path:
+    """取得作業系統標準 Temp 目錄下的 book-reader raw_outputs 暫存路徑（由 OS 自動定期清理）"""
+    import tempfile
+    base_temp = Path(tempfile.gettempdir()) / "book-reader" / "raw_outputs"
+    if book_title and book_title.strip():
+        target = base_temp / book_title.strip()
+    else:
+        target = base_temp
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
 def check_dependencies() -> Dict[str, bool]:
     """檢查 book-reader 所需的依賴套件狀態"""
     status = {

@@ -248,7 +248,8 @@ def run_batch_generation():
         print("   請先確認書籍已在 NotebookLM 網頁上傳，並執行 01_init_notebook.py 以自動產生批次配置。")
         sys.exit(1)
 
-    raw_dir = os.path.join(BASE_DIR, "raw_outputs", book_title)
+    import tempfile
+    raw_dir = os.path.join(tempfile.gettempdir(), "book-reader", "raw_outputs", book_title)
     os.makedirs(raw_dir, exist_ok=True)
 
     failed_batches = []

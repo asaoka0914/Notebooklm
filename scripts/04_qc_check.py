@@ -330,21 +330,33 @@ def qc_check():
                 return
 
             import shutil
+            import tempfile
             cleaned_any = False
             clean_title = book_title.strip()
             
-            # 強制指定具體書籍子目錄，絕不退回根目錄
-            target_raw = os.path.join(BASE_DIR, "raw_outputs", clean_title)
-            if os.path.exists(target_raw):
+            # 1. 清理系統 Temp 目錄下的 raw_outputs/<book_title>
+            target_temp_raw = os.path.join(tempfile.gettempdir(), "book-reader", "raw_outputs", clean_title)
+            if os.path.exists(target_temp_raw):
                 try:
-                    if os.path.isdir(target_raw):
-                        shutil.rmtree(target_raw)
+                    if os.path.isdir(target_temp_raw):
+                        shutil.rmtree(target_temp_raw)
                     cleaned_any = True
-                    print(f"🧹 已成功清理 raw_outputs 暫存目錄: {target_raw}")
+                    print(f"🧹 已成功清理系統 Temp 暫存目錄: {target_temp_raw}")
                 except Exception as e:
-                    print(f"Notice: Failed to clean raw_outputs: {e}")
+                    print(f"Notice: Failed to clean temp raw_outputs: {e}")
 
-            # 清理 final 子目錄中除了目標 .md 與 cover.jpg 以外的中間檔
+            # 2. 清理專案本地目錄下的 raw_outputs/<book_title>（若存在）
+            target_local_raw = os.path.join(BASE_DIR, "raw_outputs", clean_title)
+            if os.path.exists(target_local_raw):
+                try:
+                    if os.path.isdir(target_local_raw):
+                        shutil.rmtree(target_local_raw)
+                    cleaned_any = True
+                    print(f"🧹 已成功清理專案本地 raw_outputs 暫存目錄: {target_local_raw}")
+                except Exception as e:
+                    print(f"Notice: Failed to clean local raw_outputs: {e}")
+
+            # 3. 清理 final 子目錄中除了目標 .md 與 cover.jpg 以外的中間檔
             target_final = os.path.join(BASE_DIR, "final", clean_title)
             if os.path.exists(target_final) and os.path.isdir(target_final):
                 try:
@@ -365,7 +377,8 @@ def qc_check():
                 print("✨ 暫存檔清理完畢！")
 
         clean_title = book_title.strip() if book_title else ""
-        target_raw_display = os.path.join(BASE_DIR, "raw_outputs", clean_title) if clean_title else "[未指定書籍]"
+        import tempfile
+        target_raw_display = os.path.join(tempfile.gettempdir(), "book-reader", "raw_outputs", clean_title) if clean_title else "[未指定書籍]"
         target_final_display = os.path.join(BASE_DIR, "final", clean_title) if clean_title else "[未指定書籍]"
 
         if args.clean_temp:

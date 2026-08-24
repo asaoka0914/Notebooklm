@@ -39,7 +39,12 @@ def run_backfill(missing_chapters, notebook_id=None, book_title=None):
         with open(rule_path, "r", encoding="utf-8") as rf:
             rule_prompt = rf.read()
 
-    raw_dir = os.path.join(BASE_DIR, "raw_outputs", book_title) if book_title else os.path.join(BASE_DIR, "raw_outputs")
+    import tempfile
+    temp_raw_dir = os.path.join(tempfile.gettempdir(), "book-reader", "raw_outputs", book_title) if book_title else os.path.join(tempfile.gettempdir(), "book-reader", "raw_outputs")
+    local_raw_dir = os.path.join(BASE_DIR, "raw_outputs", book_title) if book_title else os.path.join(BASE_DIR, "raw_outputs")
+    
+    # 優先寫入系統 Temp 目錄
+    raw_dir = temp_raw_dir
     os.makedirs(raw_dir, exist_ok=True)
 
     print(f"\n==========================================")

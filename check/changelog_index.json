@@ -1,5 +1,17 @@
 [
   {
+    "time": "2026-08-24 15:43",
+    "title": "重構暫存檔存放路徑：統一遷移至作業系統標準 Temp 目錄（OS 自動定期清理）",
+    "files": [
+      "scripts/env_config.py",
+      "scripts/02_batch_generate.py",
+      "scripts/03_assemble_report.py",
+      "scripts/04_qc_check.py",
+      "scripts/05_backfill.py"
+    ],
+    "status": "✅完成"
+  },
+  {
     "time": "2026-08-24 15:17",
     "title": "專案目錄重整：實作計畫歸檔至 plan/ 並清理 Git 追蹤檔案",
     "files": [
