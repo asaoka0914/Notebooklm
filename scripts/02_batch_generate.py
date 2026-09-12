@@ -255,6 +255,7 @@ def run_batch_generation():
     failed_batches = []
     previous_summary = ""
     rate_limiter = RateLimiter(max_requests_per_minute=30, max_consecutive_errors=3)
+    source_type = config.get("source_type", "book")
 
     for b in batches:
         b_num = b.get("batch")
@@ -274,13 +275,27 @@ def run_batch_generation():
                 previous_summary = ""
             continue
 
-        # 2. 構建核心 Prompt (明確要求不產生腳註標號與原文引用，集中所有配額於中文內文)
-        prompt = (
-            f"請嚴格依據來源檔案《讀書報告核心概念.md》中的撰寫規範與原則，"
-            f"針對原書 {ch_range_str} 進行極度詳細、深度且不遺漏細節的繁體中文導讀報告撰寫。\n"
-            f"【重要輸出限制】：請將所有輸出配額完全集中於豐富、詳盡的章節細節與數據分析。"
-            f"嚴禁在文中插入任何腳註引用標號（例如切勿出現 [1]、[2] 或 [1-3] 等數字標籤），亦切勿產生任何原文引用附錄。\n\n"
-        )
+        # 2. 構建核心 Prompt (依 source_type 分流)
+        if source_type == "transcript":
+            prompt = (
+                f"請嚴格依據來源檔案《讀書報告核心概念.md》中的撰寫規範與原則，"
+                f"針對這份英文對話訪談逐字稿中，對應以下錨點段落：{ch_range_str}，"
+                f"進行極度詳細、深度且不遺漏細節的繁體中文導讀報告撰寫。\n"
+                f"【逐字稿專屬要求】：\n"
+                f"1. 小節標題請逐字使用上述錨點文字本身（不要意譯、改寫或翻譯錨點文字），以利後續章節涵蓋度比對。\n"
+                f"2. 請額外保留重要對話情境與金句，並附上金句的中文翻譯（原文以括號附註）。\n"
+                f"3. 若原文有標示發言者，請在對應重點旁標明。\n"
+                f"【重要輸出限制】：請將所有輸出配額完全集中於豐富、詳盡的段落細節與洞見，"
+                f"嚴禁在文中插入任何腳註引用標號（例如切勿出現 [1]、[2] 或 [1-3] 等數字標籤），"
+                f"亦切勿產生任何原文引用附錄。\n\n"
+            )
+        else:
+            prompt = (
+                f"請嚴格依據來源檔案《讀書報告核心概念.md》中的撰寫規範與原則，"
+                f"針對原書 {ch_range_str} 進行極度詳細、深度且不遺漏細節的繁體中文導讀報告撰寫。\n"
+                f"【重要輸出限制】：請將所有輸出配額完全集中於豐富、詳盡的章節細節與數據分析。"
+                f"嚴禁在文中插入任何腳註引用標號（例如切勿出現 [1]、[2] 或 [1-3] 等數字標籤），亦切勿產生任何原文引用附錄。\n\n"
+            )
         if previous_summary:
             prompt += (
                 f"【前情提要】：\n{previous_summary}\n\n"

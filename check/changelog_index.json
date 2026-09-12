@@ -1,5 +1,16 @@
 [
   {
+    "time": "2026-09-12 15:03",
+    "title": "依據擴充規格 v3 實現 Longform（無章節逐字稿）模式與全域技能同步",
+    "files": [
+      "scripts/01_init_notebook.py",
+      "scripts/02_batch_generate.py",
+      "SKILL.md",
+      "tests/test_improvements.py"
+    ],
+    "status": "✅完成"
+  },
+  {
     "time": "2026-08-24 15:43",
     "title": "重構暫存檔存放路徑：統一遷移至作業系統標準 Temp 目錄（OS 自動定期清理）",
     "files": [

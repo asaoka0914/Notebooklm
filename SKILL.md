@@ -21,10 +21,13 @@ description: 透過已推權的 notebooklm_tools 或 nlm CLI 操作 NotebookLM�
 > **請直接依序執行以下階段一標準指令**：
 > 
 > ```powershell
-> # 1. 自動初始化（自動建筆記本 + 自動上傳電子書與核心概念）
+> # 1. 自動初始化（書籍模式：自動建筆記本 + 自動上傳電子書與核心概念）
 > python scripts/01_init_notebook.py --epub "電子書絕對路徑.epub"
 > 
-> # 2. 逐章批次擷取
+> # 或：自動初始化（逐字稿/長文模式：支援 .txt，自動生成錨點與單錨點批次）
+> python scripts/01_init_notebook.py --book-path "逐字稿絕對路徑.txt" --title "逐字稿標題" --source-type transcript
+> 
+> # 2. 逐章/逐錨點批次擷取
 > python scripts/02_batch_generate.py
 > 
 > # 3. 組裝完整報告

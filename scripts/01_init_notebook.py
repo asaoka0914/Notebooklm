@@ -45,6 +45,44 @@ def plan_batches(chapters: list, batch_size: int = 2) -> list:
 
     return batches
 
+def _split_paragraph_aligned(text: str, target_size: int) -> list:
+    """依段落邊界（\n\n）切成接近 target_size 字元的大區塊，不重疊。"""
+    paragraphs = text.split('\n\n')
+    chunks, current, current_len = [], [], 0
+    for p in paragraphs:
+        current.append(p)
+        current_len += len(p)
+        if current_len >= target_size:
+            chunks.append('\n\n'.join(current))
+            current, current_len = [], 0
+    if current:
+        chunks.append('\n\n'.join(current))
+    return chunks
+
+def build_transcript_anchors(text_path: str, target_chunk_chars: int = 25000) -> list:
+    """
+    為逐字稿生成一份「章節標題」等效清單：每個元素都是逐字存在於原文中的錨點文字，
+    可直接餵給既有的 chapters 陣列與 ground_truth_toc.json，不需另建新的資料結構。
+    """
+    with open(text_path, "r", encoding="utf-8", errors="ignore") as f:
+        text = f.read()
+
+    ts_pattern = re.compile(r'\d{1,2}:\d{2}:\d{2}')
+    chunks = _split_paragraph_aligned(text, target_chunk_chars)
+    anchors = []
+
+    has_timestamps = len(ts_pattern.findall(text)) >= 5
+    for chunk in chunks:
+        if has_timestamps:
+            m = ts_pattern.search(chunk)
+            anchor = m.group(0) if m else chunk.strip().split('\n', 1)[0][:20]
+        else:
+            first_line = chunk.strip().split('\n', 1)[0].strip()
+            anchor = first_line[:20] if len(first_line) > 20 else first_line
+        anchors.append(anchor)
+
+    return anchors
+
 def extract_epub_cover(book_path, output_cover_path):
     if not os.path.exists(book_path) or not book_path.lower().endswith(".epub"):
         return False
@@ -306,6 +344,8 @@ def init_notebook():
     parser.add_argument("--book-path", "--epub", dest="book_path", help="Path to local book file (EPUB/PDF)")
     parser.add_argument("--title", help="Book title")
     parser.add_argument("--author", help="Book author")
+    parser.add_argument("--source-type", choices=["book", "transcript"], default=None,
+                        help="來源類型，預設沿用 config 既有值或 book")
     parser.add_argument("--output-dir", help="Optional output directory")
     parser.add_argument("--relogin", action="store_true", help="Clear localized session and force Chrome login before running.")
     args = parser.parse_args()
@@ -334,6 +374,8 @@ def init_notebook():
     notebook_id = args.notebook_id or config.get("notebook_id")
     book_local_path = args.book_path or config.get("book_local_path", "")
     book_title = args.title or config.get("book_title", "")
+    source_type = args.source_type or config.get("source_type", "book")
+    config["source_type"] = source_type
     rule_filename = config.get("rule_source_filename", "讀書報告核心概念.md")
     rule_source_path = os.path.join(BASE_DIR, rule_filename)
     if not os.path.exists(rule_source_path):
@@ -464,16 +506,25 @@ def init_notebook():
 
     # 解析並儲存 Ground Truth TOC json
     gt_chapters = []
-    if book_local_path and os.path.exists(book_local_path):
-        cover_out_dir = os.path.join(BASE_DIR, "final", book_title) if book_title else os.path.join(BASE_DIR, "final")
-        cover_out_path = os.path.join(cover_out_dir, "cover.jpg")
-        extract_epub_cover(book_local_path, cover_out_path)
-        gt_chapters = extract_epub_toc(book_local_path)
-    
-    if not gt_chapters:
-        raw_gt = discover_actual_toc(notebook_id)
-        if raw_gt:
-            gt_chapters = _parse_toc_response(raw_gt)
+    if source_type == "transcript":
+        if not (book_local_path and os.path.exists(book_local_path)):
+            print("❌ [Error] transcript 模式需要 --book-path 指向本機逐字稿文字檔（.txt）。")
+            sys.exit(1)
+        chunk_chars = config.get("transcript_chunk_chars", 25000)
+        gt_chapters = build_transcript_anchors(book_local_path, target_chunk_chars=chunk_chars)
+        default_batch_size = 1
+    else:
+        if book_local_path and os.path.exists(book_local_path):
+            cover_out_dir = os.path.join(BASE_DIR, "final", book_title) if book_title else os.path.join(BASE_DIR, "final")
+            cover_out_path = os.path.join(cover_out_dir, "cover.jpg")
+            extract_epub_cover(book_local_path, cover_out_path)
+            gt_chapters = extract_epub_toc(book_local_path)
+        
+        if not gt_chapters:
+            raw_gt = discover_actual_toc(notebook_id)
+            if raw_gt:
+                gt_chapters = _parse_toc_response(raw_gt)
+        default_batch_size = 2
 
     if gt_chapters:
         gt_json_path = os.path.join(BASE_DIR, "config", "ground_truth_toc.json")
@@ -482,9 +533,9 @@ def init_notebook():
             json.dump({"total_chapters": len(gt_chapters), "chapters": gt_chapters}, gtf, ensure_ascii=False, indent=2)
         print(f"✅ Ground Truth TOC saved with {len(gt_chapters)} chapters to {gt_json_path}")
 
-        # 自動根據章節清單生成預設批次策略（每 2 章一組），若 config 尚未設定批次則自動注入
+        # 自動根據章節清單生成預設批次策略，若 config 尚未設定批次則自動注入
         if "batch_strategy" not in config or not config["batch_strategy"].get("batches"):
-            auto_batches = plan_batches(gt_chapters, batch_size=2)
+            auto_batches = plan_batches(gt_chapters, batch_size=default_batch_size)
             if "batch_strategy" not in config:
                 config["batch_strategy"] = {}
             config["batch_strategy"]["batches"] = auto_batches

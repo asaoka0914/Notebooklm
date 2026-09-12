@@ -2,6 +2,7 @@ import unittest
 import time
 import os
 import sys
+import shutil
 import importlib.util
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -150,6 +151,45 @@ batch_strategy:
             # 驗證 batch 2 根本沒有被嘗試執行（沒有輸出 batch_02.json）
             batch_02 = os.path.join(temp_dir, "raw_outputs", "test_circuit_breaker_book", "batch_02.json")
             self.assertFalse(os.path.exists(batch_02))
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_build_transcript_anchors(self):
+        """測試逐字稿錨點生成：包含時間戳與無時間戳兩種情境"""
+        build_anchors = getattr(mod_01, "build_transcript_anchors", None)
+        self.assertIsNotNone(build_anchors)
+
+        import tempfile
+        temp_dir = tempfile.mkdtemp()
+        try:
+            # 1. 帶時間戳（>=5個）
+            ts_text = (
+                "00:01:00 Speaker A: Hello and welcome.\n\n"
+                "00:10:00 Speaker B: Today we discuss economics.\n\n"
+                "00:20:00 Speaker A: Let us review the inflation rate.\n\n"
+                "00:30:00 Speaker B: And interest rate expectations.\n\n"
+                "00:40:00 Speaker A: In conclusion, risk management is key.\n\n"
+            )
+            ts_path = os.path.join(temp_dir, "ts.txt")
+            with open(ts_path, "w", encoding="utf-8") as f:
+                f.write(ts_text)
+            anchors_ts = build_anchors(ts_path, target_chunk_chars=30)
+            self.assertGreaterEqual(len(anchors_ts), 4)
+            self.assertTrue(any(":" in a for a in anchors_ts))
+
+            # 2. 無時間戳（取開頭前20字）
+            plain_text = (
+                "Paragraph one introduces the main topic of our extensive interview.\n\n"
+                "Paragraph two delves deeper into architecture patterns and distributed systems.\n\n"
+                "Paragraph three explores database consistency and event-driven sagas.\n\n"
+            )
+            plain_path = os.path.join(temp_dir, "plain.txt")
+            with open(plain_path, "w", encoding="utf-8") as f:
+                f.write(plain_text)
+            anchors_plain = build_anchors(plain_path, target_chunk_chars=50)
+            self.assertGreaterEqual(len(anchors_plain), 2)
+            for a in anchors_plain:
+                self.assertLessEqual(len(a), 20)
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
