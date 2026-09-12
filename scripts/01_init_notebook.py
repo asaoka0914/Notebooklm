@@ -46,8 +46,25 @@ def plan_batches(chapters: list, batch_size: int = 2) -> list:
     return batches
 
 def _split_paragraph_aligned(text: str, target_size: int) -> list:
-    """依段落邊界（\n\n）切成接近 target_size 字元的大區塊，不重疊。"""
-    paragraphs = text.split('\n\n')
+    """
+    依段落邊界（\\n\\n）切成接近 target_size 字元的大區塊。
+    若文章缺乏雙換行分段（全文只有極少段落且字數眾多），則 fallback 以常見標點符號與單換行進行自然斷句切分。
+    """
+    raw_paragraphs = [p for p in text.split('\n\n') if p.strip()]
+    # 若段落數極少但總字數大於 target_size，代表此為未分段字幕或連貫長文，啟用標點切分 fallback
+    if len(raw_paragraphs) < 3 and len(text) > target_size:
+        # 以常見全半形句尾標點符號與單換行切分句子，保留標點
+        units = re.split(r'([。！？\n]+)', text)
+        paragraphs = []
+        for i in range(0, len(units), 2):
+            part = units[i]
+            punct = units[i + 1] if i + 1 < len(units) else ""
+            comb = (part + punct).strip()
+            if comb:
+                paragraphs.append(comb)
+    else:
+        paragraphs = raw_paragraphs
+
     chunks, current, current_len = [], [], 0
     for p in paragraphs:
         current.append(p)
@@ -59,7 +76,43 @@ def _split_paragraph_aligned(text: str, target_size: int) -> list:
         chunks.append('\n\n'.join(current))
     return chunks
 
-def build_transcript_anchors(text_path: str, target_chunk_chars: int = 25000) -> list:
+def _extract_clean_first_phrase(chunk: str, max_len: int = 20) -> str:
+    """
+    從 chunk 內容中尋找第一句真實的正文，嚴格過濾 Markdown 圖片、URL、純符號與 HTML 標籤。
+    所擷取的文字必須 100% 逐字存在於原文中，以利 NotebookLM RAG 與 QC 比對。
+    若該 chunk 僅含圖片或 URL 等無效正文，則回傳空字串。
+    """
+    for raw_line in chunk.split('\n'):
+        line = raw_line.strip()
+        if not line:
+            continue
+        # 過濾包含 Markdown 圖片語法的行：![...](...)
+        if re.search(r'!\[.*?\]\(.*?\)', line):
+            continue
+        # 過濾純 URL：http:// 或 https://
+        if re.match(r'^https?://\S+$', line):
+            continue
+        # 過濾 Markdown 連結行：[title](url)
+        if re.match(r'^\[.*?\]\(.*?\)$', line):
+            continue
+        # 過濾 HTML 標籤行
+        if re.match(r'^<[^>]+>$', line):
+            continue
+
+        # 在行內尋找第一段合法的中文或英文字詞起始點
+        m = re.search(r'[\u4e00-\u9fa5a-zA-Z0-9]', line)
+        if m:
+            start_idx = m.start()
+            candidate = line[start_idx:start_idx + max_len].strip()
+            # 若擷取後的片段仍包含圖片/網址前綴，則跳過本行
+            if "![" in candidate or "http://" in candidate or "https://" in candidate:
+                continue
+            if candidate:
+                return candidate
+
+    return ""
+
+def build_transcript_anchors(text_path: str, target_chunk_chars: int = 5000) -> list:
     """
     為逐字稿生成一份「章節標題」等效清單：每個元素都是逐字存在於原文中的錨點文字，
     可直接餵給既有的 chapters 陣列與 ground_truth_toc.json，不需另建新的資料結構。
@@ -75,11 +128,11 @@ def build_transcript_anchors(text_path: str, target_chunk_chars: int = 25000) ->
     for chunk in chunks:
         if has_timestamps:
             m = ts_pattern.search(chunk)
-            anchor = m.group(0) if m else chunk.strip().split('\n', 1)[0][:20]
+            anchor = m.group(0) if m else _extract_clean_first_phrase(chunk, max_len=20)
         else:
-            first_line = chunk.strip().split('\n', 1)[0].strip()
-            anchor = first_line[:20] if len(first_line) > 20 else first_line
-        anchors.append(anchor)
+            anchor = _extract_clean_first_phrase(chunk, max_len=20)
+        if anchor and anchor not in anchors:
+            anchors.append(anchor)
 
     return anchors
 
@@ -377,9 +430,18 @@ def init_notebook():
     source_type = args.source_type or config.get("source_type", "book")
     config["source_type"] = source_type
     rule_filename = config.get("rule_source_filename", "讀書報告核心概念.md")
-    rule_source_path = os.path.join(BASE_DIR, rule_filename)
-    if not os.path.exists(rule_source_path):
-        rule_source_path = os.path.join(BASE_DIR, "source", rule_filename)
+    candidate_rule_paths = [
+        os.path.join(BASE_DIR, rule_filename),
+        os.path.join(BASE_DIR, "plan", rule_filename),
+        os.path.join(BASE_DIR, "source", rule_filename),
+    ]
+    rule_source_path = ""
+    for cp in candidate_rule_paths:
+        if os.path.exists(cp):
+            rule_source_path = cp
+            break
+    if not rule_source_path:
+        rule_source_path = os.path.join(BASE_DIR, "plan", rule_filename)
 
     # 擷取 EPUB 元數據（若有提供電子書檔）
     epub_meta = {}
@@ -508,9 +570,9 @@ def init_notebook():
     gt_chapters = []
     if source_type == "transcript":
         if not (book_local_path and os.path.exists(book_local_path)):
-            print("❌ [Error] transcript 模式需要 --book-path 指向本機逐字稿文字檔（.txt）。")
+            print(f"❌ [Error] transcript 模式找不到指定檔案，請確認路徑是否存在：'{book_local_path}'（原生支援 .md, .txt 等純文字檔，請使用絕對路徑）")
             sys.exit(1)
-        chunk_chars = config.get("transcript_chunk_chars", 25000)
+        chunk_chars = config.get("transcript_chunk_chars", 5000)
         gt_chapters = build_transcript_anchors(book_local_path, target_chunk_chars=chunk_chars)
         default_batch_size = 1
     else:
@@ -533,8 +595,9 @@ def init_notebook():
             json.dump({"total_chapters": len(gt_chapters), "chapters": gt_chapters}, gtf, ensure_ascii=False, indent=2)
         print(f"✅ Ground Truth TOC saved with {len(gt_chapters)} chapters to {gt_json_path}")
 
-        # 自動根據章節清單生成預設批次策略，若 config 尚未設定批次則自動注入
-        if "batch_strategy" not in config or not config["batch_strategy"].get("batches"):
+        # 自動根據章節清單生成預設批次策略，若 config 尚未設定批次或章節有變動則自動重新規劃
+        current_batch_chapters = [ch for b in config.get("batch_strategy", {}).get("batches", []) for ch in b.get("chapters", [])]
+        if "batch_strategy" not in config or not config["batch_strategy"].get("batches") or current_batch_chapters != gt_chapters:
             auto_batches = plan_batches(gt_chapters, batch_size=default_batch_size)
             if "batch_strategy" not in config:
                 config["batch_strategy"] = {}

@@ -16,16 +16,20 @@ description: 透過已推權的 notebooklm_tools 或 nlm CLI 操作 NotebookLM�
 > **核心哲學**：**「NotebookLM 負責長文消化（0 Token 消耗） ＋ 本地端 Agent 負責高智慧收尾（低 Token 消耗、高品質關聯）」**。
 
 > **執行原則**：
-> 當收到處理電子書指令時，**嚴禁自行寫計畫、翻查原始碼或進行猜測性除錯**！
-> 腳本已完全具備「自動建立 NotebookLM 筆記本、自動上傳 EPUB 與規則檔、自動多帳號共用、自動批次生成、自動 QC 補課」之全自動能力。
+> 當收到處理長文或電子書指令時，**嚴禁自行寫計畫、翻查原始碼或進行猜測性除錯**！
+> 腳本已完全具備「自動建立 NotebookLM 筆記本、自動上傳 EPUB/長文與規則檔、自動多帳號共用、自動批次生成、自動 QC 補課」之全自動能力。
+> 
+> [!IMPORTANT]
+> **執行工作目錄 (CWD) 規範**：執行下列 Python 指令時，終端機工作目錄必須為本技能或專案目錄（如 `G:/我的雲端硬碟/Project/Notebooklm`），**嚴禁在 Obsidian 或 raw/ 目錄下直接以相對路徑 `python scripts/...` 調用**！亦可一律使用腳本絕對路徑執行。
+> 
 > **請直接依序執行以下階段一標準指令**：
 > 
 > ```powershell
 > # 1. 自動初始化（書籍模式：自動建筆記本 + 自動上傳電子書與核心概念）
 > python scripts/01_init_notebook.py --epub "電子書絕對路徑.epub"
 > 
-> # 或：自動初始化（逐字稿/長文模式：支援 .txt，自動生成錨點與單錨點批次）
-> python scripts/01_init_notebook.py --book-path "逐字稿絕對路徑.txt" --title "逐字稿標題" --source-type transcript
+> # 或：自動初始化（逐字稿/長文模式：原生支援 .md 與 .txt，自動生成錨點與單錨點批次）
+> python scripts/01_init_notebook.py --book-path "長文絕對路徑.md" --title "長文標題" --source-type transcript
 > 
 > # 2. 逐章/逐錨點批次擷取
 > python scripts/02_batch_generate.py
@@ -239,6 +243,7 @@ sources: ["source-summary-slug"]
    - 明確定義 Agent 接手後的 5 大任務：
      1. 生成標準英文 kebab-case slug（使用安全字元轉換，避免標點正則錯誤）。
      2. 檢查並寫入兩份檔案（詳細版至 `[VAULT_ROOT]/raw/articles/zh/`，摘要版至 `[VAULT_ROOT]/wiki/summaries/`）。
+         - **【YouTube 影片內嵌規範】**：若原始長文/逐字稿開頭包含 YouTube 連結（如 `![](https://www.youtube.com/watch?v=...)`），詳細正文的 Frontmatter `sources` 必須填入該網址，並依 `bobo-wiki-ingest` 規範於 H1 大標題與快速導覽下方嵌入 `<iframe ...>` 播放器與 `*影片來源*`，摘要 Frontmatter `sources` 亦同步填入。
      3. **檢索與維護 `[VAULT_ROOT]/wiki/concepts/`（防覆蓋與標準品質雙重閉環）**：
         - **【強制 Slug 轉譯與繁中 Title 防呆】**：
           - 檢查摘要內的模組二與模組六，**若發現任何純中文裸連結（如 `[[四種經濟狀況反應模型]]`），必須立即修正為 `[[english-slug|繁體中文]]`（如 `[[four-economic-conditions|四種經濟狀況反應模型]]`）**，嚴禁讓純中文裸字串流入知識庫。

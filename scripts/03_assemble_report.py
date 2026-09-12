@@ -151,8 +151,10 @@ def assemble_report_core(book_title: str = None):
     if os.path.exists(config_path):
         with open(config_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
+
+    book_title = book_title or config.get("book_title", "讀書報告")
     import tempfile
-    temp_raw_dir = os.path.join(tempfile.gettempdir(), "book-reader", "raw_outputs", book_title) if book_title else os.path.join(tempfile.gettempdir(), "book-reader", "raw_outputs")
+    temp_raw_dir = os.path.join(tempfile.gettempdir(), "book-reader", "raw_outputs", book_title) if (book_title and book_title != "讀書報告") else os.path.join(tempfile.gettempdir(), "book-reader", "raw_outputs")
     local_raw_dir = os.path.join(BASE_DIR, "raw_outputs", book_title) if (book_title and os.path.exists(os.path.join(BASE_DIR, "raw_outputs", book_title))) else os.path.join(BASE_DIR, "raw_outputs")
     
     # 優先從系統 Temp 目錄讀取，若不存在但專案目錄存在則相容讀取

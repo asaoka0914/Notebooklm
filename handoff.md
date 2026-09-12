@@ -1,20 +1,23 @@
 # Handoff (交接紀錄)
 
-- **最後更新**: 2026-09-12 15:10
+- **最後更新**: 2026-09-12 22:45
 - **最後操作裝置**: 家裡電腦 (AsaokaHTPC)
-- **當前狀態**: 🟢 完成 Longform（逐字稿）模式規格 v3 升級、全套 41 項測試 100% 通過、已同步全域技能（Gemini / Claude Code / Claude Desktop）並推送至 GitHub 遠端。
+- **當前狀態**: 🟢 完成《月月自動發薪》全流程驗證與 Obsidian BoBo-wiki 概念歸檔，修復標題解析、長文自然斷句、YouTube 影片內嵌與 Schema 正則，全套 43 項測試 100% 通過，全域同步與 Git commit 完畢。
 - **程式修改與核心成果**:
-  - **1. 逐字稿錨點生成與批次策略 (`scripts/01_init_notebook.py`)**：
-    - 新增 `--source-type [book|transcript]` 參數。
-    - 實作 `_split_paragraph_aligned()` 與 `build_transcript_anchors()`，依段落邊界自動切分 25,000 字元大區塊，擷取時間戳（`HH:MM:SS`）或開頭短句作為原文錨點清單，塞入既有 chapters 欄位與 `ground_truth_toc.json`（單批次大小預設為 1）。
-  - **2. 專屬 Prompt 分流 (`scripts/02_batch_generate.py`)**：
-    - 依 `source_type == "transcript"` 分流 Prompt，明確要求小節標題逐字採用錨點、保留對話情境、金句翻譯與發言者標明，徹底相容後續 03 組裝與 04 QC 比對。
-  - **3. 單元測試與自動化驗證 (`tests/test_improvements.py`)**：
-    - 新增逐字稿時間戳與無時間戳錨點生成單元測試，全套 41 項測試全部通過（Ran 41 tests, OK）。
-  - **4. 本地全域技能與 GitHub 遠端同步**：
-    - 已同步至 `~/.gemini/config/skills/book-reader/`、`~/.claude/skills/book-reader/` 與 `~/Claude/skills/global-skills/book-reader/`。
-    - GitHub 遠端儲存庫已執行 `git push origin master`（Commit `ddab169`）。
+  - **1. 長文錨點自然斷句與格式清洗 (`scripts/01_init_notebook.py`)**：
+    - 實作 `_extract_clean_first_phrase()` 徹底排除 Markdown 圖片語法 `![](...)`、URL 與特殊符號，確保錨點文字為 100% 存在於原文之可朗讀文字。
+    - 於 `_split_paragraph_aligned()` 建立無空行純字幕長文以標點符號自然斷句 Fallback 機制，預設每 5,000 字元自適應切分。
+  - **2. 腳本健全性提升 (`scripts/03_assemble_report.py`, `scripts/05_backfill.py`)**：
+    - 修復組裝時無 `--title` 參數自動自 config 獲取書名之回退機制。
+    - 標題自動階層正規化經 QC 驗證 100% 通過，不再需要任何手動 patch 檔案。
+  - **3. 單元測試強化 (`tests/test_improvements.py`)**：
+    - 擴充測試案例，全套 43 項單元測試 100% 通過。
+  - **4. 知識庫雙向歸檔與格式標準化**：
+    - 詳細版正文寫入 `BoBo-wiki/raw/articles/zh/monthly-auto-salary-retirement.md` 並嵌入 YouTube 播放器與來源網址。
+    - 6 模組深度摘要寫入 `BoBo-wiki/wiki/summaries/monthly-auto-salary-retirement-summary.md`。
+    - 新建 10 篇標準 Concept 概念頁，補正 2 篇既有概念反向連結；Schema 與鏈結稽核 100% 通過。
+    - 修復 `validate_schema.py` 對 Emoji + 中文序號前綴之正則判定。
+  - **5. 全域技能同步與 GitHub 備份**：
+    - 已同步更新至 Gemini（`~/.gemini/config/skills/book-reader`）、Claude Code / Desktop（`~/.claude/skills/book-reader`、`~/Claude/skills/global-skills/book-reader`）。
 - **下一次開工建議**:
-  - 可直接使用逐字稿模式處理音訊訪談或 Podcast 逐字稿文字檔：
-    `python scripts/01_init_notebook.py --book-path "逐字稿.txt" --title "訪談標題" --source-type transcript`
-  - 依序執行 `02_batch_generate.py` → `03_assemble_report.py` → `04_qc_check.py --auto-backfill` → `06_generate_book_summary.py` 驗收長文生成管線。
+  - 系統已完全健全，隨時可透過 `book-reader` 輸入下一本電子書或無章節長文逐字稿進行全自動分析與知識庫歸檔。

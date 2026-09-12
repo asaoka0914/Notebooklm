@@ -193,6 +193,62 @@ batch_strategy:
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
+    def test_build_transcript_anchors_strips_media_and_url(self):
+        """測試逐字稿開頭包含 Markdown 圖片或 URL 時，能正確過濾並抓取真實正文作為錨點"""
+        build_anchors = getattr(mod_01, "build_transcript_anchors", None)
+        self.assertIsNotNone(build_anchors)
+
+        import tempfile, shutil
+        temp_dir = tempfile.mkdtemp()
+        try:
+            content = (
+                "\n\n![](https://www.youtube.com/watch?v=12345)\n\n"
+                "你是不是也在擔心一件事情辛苦半輩子好不容易存到錢。\n\n"
+                "http://example.com/link\n\n"
+                "第二段正文開始討論報酬序列風險與提領規劃。\n\n"
+            )
+            fp = os.path.join(temp_dir, "media.md")
+            with open(fp, "w", encoding="utf-8") as f:
+                f.write(content)
+            anchors = build_anchors(fp, target_chunk_chars=30)
+            self.assertTrue(len(anchors) >= 2)
+            # 驗證錨點絕對不能包含圖片語法或 http
+            for a in anchors:
+                self.assertNotIn("![]", a)
+                self.assertNotIn("http", a)
+            self.assertTrue(anchors[0].startswith("你是不是也在擔心"))
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_build_transcript_anchors_fallback_on_unsegmented_text(self):
+        """測試當萬字長文完全沒有空行 \\n\\n 分段時，能自動以標點符號進行自然切分產出多個錨點"""
+        build_anchors = getattr(mod_01, "build_transcript_anchors", None)
+        self.assertIsNotNone(build_anchors)
+
+        import tempfile, shutil
+        temp_dir = tempfile.mkdtemp()
+        try:
+            # 模擬 1.5 萬字純字幕（全文無雙換行）
+            sentences = [
+                "這是第一階段的觀念破解與問題剖析討論傳統提領問題。",
+                "這是第二階段的全球股債資產配置與歷史三十年回測數據分析。",
+                "這是第三階段的愛爾蘭註冊美股ETF節稅與跨國稅務架構。",
+                "這是第四階段的海外券商實操買賣平衡與銀行自動出金流程。"
+            ]
+            long_stream = "。".join([s * 150 for s in sentences]) + "。"
+            fp = os.path.join(temp_dir, "stream.md")
+            with open(fp, "w", encoding="utf-8") as f:
+                f.write(long_stream)
+
+            anchors = build_anchors(fp, target_chunk_chars=4000)
+            # 驗證不能只產出 1 個 anchor，必須切出 3 個以上
+            self.assertGreaterEqual(len(anchors), 3)
+            for a in anchors:
+                self.assertTrue(len(a) > 0)
+                self.assertLessEqual(len(a), 20)
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
 if __name__ == '__main__':
     unittest.main()
 

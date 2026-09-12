@@ -29,10 +29,18 @@ def run_backfill(missing_chapters, notebook_id=None, book_title=None):
     book_title = book_title or config.get("book_title", "讀書報告")
     notebook_id = notebook_id or config.get("notebook_id")
     rule_filename = config.get("rule_source_filename", "讀書報告核心概念.md")
-    rule_path = os.path.join(BASE_DIR, rule_filename)
-
-    if not os.path.exists(rule_path):
-        rule_path = os.path.join(BASE_DIR, "source", rule_filename)
+    candidate_rule_paths = [
+        os.path.join(BASE_DIR, rule_filename),
+        os.path.join(BASE_DIR, "plan", rule_filename),
+        os.path.join(BASE_DIR, "source", rule_filename),
+    ]
+    rule_path = ""
+    for cp in candidate_rule_paths:
+        if os.path.exists(cp):
+            rule_path = cp
+            break
+    if not rule_path:
+        rule_path = os.path.join(BASE_DIR, "plan", rule_filename)
 
     rule_prompt = ""
     if os.path.exists(rule_path):
