@@ -1,23 +1,28 @@
 # Handoff (交接紀錄)
 
-- **最後更新**: 2026-09-12 22:45
+- **最後更新**: 2026-09-13 08:15
 - **最後操作裝置**: 家裡電腦 (AsaokaHTPC)
-- **當前狀態**: 🟢 完成《月月自動發薪》全流程驗證與 Obsidian BoBo-wiki 概念歸檔，修復標題解析、長文自然斷句、YouTube 影片內嵌與 Schema 正則，全套 43 項測試 100% 通過，全域同步與 Git commit 完畢。
+- **當前狀態**: 🟢 完成逐字稿巨型段落穩定切分重構、章節標題昇格與外文繁中雙軌標題機制，全套 46 項單元測試 100% 通過，全域技能同步與 GitHub 備份完畢。
 - **程式修改與核心成果**:
-  - **1. 長文錨點自然斷句與格式清洗 (`scripts/01_init_notebook.py`)**：
-    - 實作 `_extract_clean_first_phrase()` 徹底排除 Markdown 圖片語法 `![](...)`、URL 與特殊符號，確保錨點文字為 100% 存在於原文之可朗讀文字。
-    - 於 `_split_paragraph_aligned()` 建立無空行純字幕長文以標點符號自然斷句 Fallback 機制，預設每 5,000 字元自適應切分。
-  - **2. 腳本健全性提升 (`scripts/03_assemble_report.py`, `scripts/05_backfill.py`)**：
-    - 修復組裝時無 `--title` 參數自動自 config 獲取書名之回退機制。
-    - 標題自動階層正規化經 QC 驗證 100% 通過，不再需要任何手動 patch 檔案。
-  - **3. 單元測試強化 (`tests/test_improvements.py`)**：
-    - 擴充測試案例，全套 43 項單元測試 100% 通過。
-  - **4. 知識庫雙向歸檔與格式標準化**：
-    - 詳細版正文寫入 `BoBo-wiki/raw/articles/zh/monthly-auto-salary-retirement.md` 並嵌入 YouTube 播放器與來源網址。
-    - 6 模組深度摘要寫入 `BoBo-wiki/wiki/summaries/monthly-auto-salary-retirement-summary.md`。
-    - 新建 10 篇標準 Concept 概念頁，補正 2 篇既有概念反向連結；Schema 與鏈結稽核 100% 通過。
-    - 修復 `validate_schema.py` 對 Emoji + 中文序號前綴之正則判定。
-  - **5. 全域技能同步與 GitHub 備份**：
-    - 已同步更新至 Gemini（`~/.gemini/config/skills/book-reader`）、Claude Code / Desktop（`~/.claude/skills/book-reader`、`~/Claude/skills/global-skills/book-reader`）。
+  - **1. 逐字稿巨型段落切分與標題昇格 (`scripts/01_init_notebook.py`, `scripts/03_assemble_report.py`)**：
+    - 解決無分段長文未觸發切分導致報告嚴重縮水至 4,598 字的致命缺陷，以固定字元長度搭配標點回探邊界穩健切分。
+    - 於 03 `normalize_headings()` 加入 Rule 4 H2 Fallback，修復任意文字錨點標題昇格。
+    - 成功將 21.9 萬字超長訪談逐字稿產出為 **81,508 字元（8.1 萬字）** 高保真全細節報告。
+  - **2. 外文逐字稿段落標題雙軌機制 (`scripts/02_batch_generate.py`, `scripts/04_qc_check.py`)**：
+    - 逐字稿 Prompt 強制約束雙標題格式：`## [精準繁體中文主題標題] — [錨點文字]`，徹底消除無意義英文截斷片語（如 `## actually the enterta`）。
+    - 04 QC 核對層支援自動提取破折號後半段原文錨點比對，達成 100% 覆蓋度檢驗順暢通過（0 false-alarm）。
+  - **3. 單元測試套件擴充 (`tests/test_transcript_fixes.py`)**：
+    - 新增逐字稿切分、標題昇格與雙軌標題比對測試，全套 46 項單元測試 100% 通過。
+  - **4. 跨平台全域技能同步 (100% 對齊)**：
+    - 已同步更新至：
+      - Antigravity / Gemini (`~/.gemini/config/skills/book-reader`)
+      - Claude Code / Desktop (`~/.claude/skills/book-reader`)
+      - ChatGPT / Codex (`~/.codex/skills/book-reader`)
+      - 通用 Agent 共用層 (`~/.agents/skills/book-reader`)
+  - **5. Git 與 GitHub 雲端備份**：
+    - Commit `e445d1d`（`feat(transcript): 支援逐字稿巨型段落穩定切分、章節標題昇格與繁中雙軌標題機制`）已推送至遠端 `origin/master`。
+  - **6. Obsidian 知識庫與日誌完整記錄**：
+    - 正文 [naval-cruel-truths-of-human-nature.md](file:///G:/我的雲端硬碟/Obsidian/BoBo-wiki/raw/articles/zh/naval-cruel-truths-of-human-nature.md) 45 個 H2 標題全數昇華為繁中文意標題。
+    - 日誌已記錄於 [CHANGELOG.md](file:///G:/我的雲端硬碟/Obsidian/程式開發/Notebooklm/CHANGELOG.md)、[changelog_index.json](file:///G:/我的雲端硬碟/Project/Notebooklm/check/changelog_index.json)，並將「逐字稿章節標題雙軌制」沉澱至 [LESSONS.md](file:///G:/我的雲端硬碟/Obsidian/程式開發/Notebooklm/LESSONS.md)。
 - **下一次開工建議**:
-  - 系統已完全健全，隨時可透過 `book-reader` 輸入下一本電子書或無章節長文逐字稿進行全自動分析與知識庫歸檔。
+  - `book-reader` 管線已達最高穩定度與語意品質，隨時可接收下一篇外文對話訪談逐字稿或電子書進行全自動提取與知識庫歸檔。
