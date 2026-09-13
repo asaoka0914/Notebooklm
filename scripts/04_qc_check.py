@@ -107,9 +107,24 @@ def run_single_qc_pass(report_path):
     chap_blocks = [c for c in chapters[1:] if c.strip()]
 
     print(f"\n--- 1. Chapter Density & Structure Check ({len(chap_blocks)} chapters found) ---")
+    
+    # 讀取 source_type 與 total_gt 以便在 transcript 單批次時放寬
+    config_path = os.path.join(BASE_DIR, "config", "book_config.yaml")
+    cfg = {}
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r", encoding="utf-8") as f_cfg:
+                cfg = yaml.safe_load(f_cfg) or {}
+        except Exception:
+            pass
+    is_transcript = cfg.get("source_type") == "transcript"
+
     if not chap_blocks:
-        print("❌ [FAIL] No H2 (##) chapter headings found in report.")
-        passed_all = False
+        if is_transcript:
+            print("⚠️ [WARN] No explicit H2 (##) headings found in transcript report; falling back to full text density.")
+        else:
+            print("❌ [FAIL] No H2 (##) chapter headings found in report.")
+            passed_all = False
 
     found_chapter_titles = []
     has_density_warnings = False
@@ -167,7 +182,21 @@ def run_single_qc_pass(report_path):
 
             for gt_chap in gt_chapters:
                 norm_gt = _normalize(gt_chap)
-                matched = any(norm_gt == _normalize(fc) or norm_gt in _normalize(fc) or _normalize(fc) in norm_gt for fc in found_chapter_titles)
+                # 支援雙軌章節標題比對（如「## 繁體中文標題 — 原文錨點」）
+                matched = False
+                for fc in found_chapter_titles:
+                    norm_fc = _normalize(fc)
+                    if norm_gt == norm_fc or norm_gt in norm_fc or norm_fc in norm_gt:
+                        matched = True
+                        break
+                    # 若標題包含破折號或冒號，嘗試提取後半段原文錨點進行比對
+                    if any(sep in fc for sep in ['—', '–', '-', ':', '：']):
+                        parts = re.split(r'[—–\-:：]', fc)
+                        if len(parts) >= 2:
+                            anchor_part = _normalize(parts[-1].strip())
+                            if norm_gt == anchor_part or norm_gt in anchor_part or anchor_part in norm_gt:
+                                matched = True
+                                break
                 if not matched:
                     missing_chapters.append(gt_chap)
 

@@ -52,6 +52,10 @@ def normalize_headings(text):
         elif re.match(r'^(?:#{1,6}\s*)?\d+\s*(?:[「『"\'“”])?\s*[\u4e00-\u9fa5a-zA-Z]', stripped):
             clean_title = re.sub(r'^#{1,6}\s*', '', stripped)
             norm_lines.append(f"\n## {clean_title}\n")
+        # 4. Fallback（僅在規則 1-3 未匹配時生效）：任意以多個 # 開頭且接中文/英文詞的標題行，昇格為 H2
+        elif re.match(r'^(?:#{2,6})\s*[\u4e00-\u9fa5a-zA-Z]', stripped):
+            clean_title = re.sub(r'^#{1,6}\s*', '', stripped)
+            norm_lines.append(f"\n## {clean_title}\n")
         else:
             norm_lines.append(line)
             

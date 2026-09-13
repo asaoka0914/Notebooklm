@@ -1,5 +1,41 @@
 [
   {
+    "time": "2026-09-13 08:06",
+    "title": "落實外文逐字稿段落標題雙軌機制（繁中主題＋原文錨點）與 QC 匹配升級",
+    "files": [
+      "scripts/02_batch_generate.py",
+      "scripts/04_qc_check.py",
+      "SKILL.md",
+      "tests/test_transcript_fixes.py"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-09-12 23:58",
+    "title": "透過 dev-cycle 流程完成逐字稿巨型段落切分重構、標題昇格與 7.8 萬字全文高保真重新生成",
+    "files": [
+      "scripts/01_init_notebook.py",
+      "scripts/02_batch_generate.py",
+      "scripts/03_assemble_report.py",
+      "scripts/04_qc_check.py",
+      "tests/test_transcript_fixes.py",
+      "BoBo-wiki/raw/articles/zh/naval-cruel-truths-of-human-nature.md"
+    ],
+    "status": "✅完成"
+  },
+  {
+    "time": "2026-09-12 23:00",
+    "title": "完成《納瓦爾談人性的殘酷真相》超長逐字稿全流程生成與 Obsidian 概念雙向鏈結歸檔",
+    "files": [
+      "BoBo-wiki/raw/articles/zh/naval-cruel-truths-of-human-nature.md",
+      "BoBo-wiki/wiki/summaries/naval-cruel-truths-of-human-nature-summary.md",
+      "BoBo-wiki/wiki/concepts/desire-contract.md",
+      "BoBo-wiki/wiki/concepts/status-vs-wealth-games.md",
+      "BoBo-wiki/wiki/concepts/internal-golden-rule.md"
+    ],
+    "status": "✅完成"
+  },
+  {
     "time": "2026-09-12 22:20",
     "title": "完成《月月自動發薪》全流程生成與 Obsidian 概念雙向鏈結歸檔",
     "files": [

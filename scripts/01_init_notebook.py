@@ -48,25 +48,60 @@ def plan_batches(chapters: list, batch_size: int = 2) -> list:
 def _split_paragraph_aligned(text: str, target_size: int) -> list:
     """
     依段落邊界（\\n\\n）切成接近 target_size 字元的大區塊。
-    若文章缺乏雙換行分段（全文只有極少段落且字數眾多），則 fallback 以常見標點符號與單換行進行自然斷句切分。
+    若段落內部存在遠大於 target_size 的巨型連續字串，
+    則依固定字元長度並回探空格/標點邊界進行穩健切分。
     """
     raw_paragraphs = [p for p in text.split('\n\n') if p.strip()]
-    # 若段落數極少但總字數大於 target_size，代表此為未分段字幕或連貫長文，啟用標點切分 fallback
-    if len(raw_paragraphs) < 3 and len(text) > target_size:
-        # 以常見全半形句尾標點符號與單換行切分句子，保留標點
-        units = re.split(r'([。！？\n]+)', text)
-        paragraphs = []
-        for i in range(0, len(units), 2):
-            part = units[i]
-            punct = units[i + 1] if i + 1 < len(units) else ""
-            comb = (part + punct).strip()
-            if comb:
-                paragraphs.append(comb)
-    else:
-        paragraphs = raw_paragraphs
+    paragraphs = []
+
+    for p in raw_paragraphs:
+        if len(p) > int(target_size * 1.5):
+            # 針對巨型段落，以 target_size 回探自然邊界
+            idx = 0
+            p_len = len(p)
+            while idx < p_len:
+                if p_len - idx <= int(target_size * 1.2):
+                    paragraphs.append(p[idx:].strip())
+                    break
+                # 在 [idx, idx + target_size] 區間尋找最佳切割點
+                end_pos = idx + target_size
+                # 優先在 end_pos 前方 500 字元內尋找標點或空格邊界
+                search_start = max(idx, end_pos - 500)
+                sub_slice = p[search_start:end_pos]
+                
+                # 尋找中文標點、英文句尾標點或空格
+                split_offset = -1
+                for m in re.finditer(r'([。！？\n]|(?:\.|\?|!)\s+|\s+)', sub_slice):
+                    split_offset = m.end()
+                
+                if split_offset != -1:
+                    cut_point = search_start + split_offset
+                else:
+                    cut_point = end_pos
+                
+                chunk_slice = p[idx:cut_point].strip()
+                if chunk_slice:
+                    paragraphs.append(chunk_slice)
+                idx = cut_point
+        else:
+            paragraphs.append(p)
 
     chunks, current, current_len = [], [], 0
     for p in paragraphs:
+        # 若單一段落本身就已接近或達到 target_size（例如經過巨型段落切分出的 sub_chunk）
+        if len(p) >= int(target_size * 0.8):
+            if current:
+                # 若先前累積的內容很小（例如開頭短標題），合併到此大段落前方，不單獨成極小 chunk
+                if current_len < int(target_size * 0.5):
+                    chunks.append('\n\n'.join(current) + '\n\n' + p)
+                    current, current_len = [], 0
+                    continue
+                else:
+                    chunks.append('\n\n'.join(current))
+                    current, current_len = [], 0
+            chunks.append(p)
+            continue
+
         current.append(p)
         current_len += len(p)
         if current_len >= target_size:
